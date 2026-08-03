@@ -34,6 +34,24 @@ Default config:
 Activation of paid model calls, live inner episodes, shadow candidates,
 injection, and promotion each require **separate explicit gates**.
 
+### Real inner-loop episode runner (v0.1.1)
+
+`experiment run --backend episode` executes a genuine (non-synthetic) inner
+episode: the candidate patch is applied with `git apply` in a **disposable
+worktree** of the target repo, then a paired subprocess episode runs against
+both the baseline (HEAD) and the candidate (HEAD+patch) tree, and the result
+is evaluated with deterministic fail-closed validators. Results are labelled
+`mode: subprocess_episode` / `label: EPISODE_PASS|EPISODE_FAIL` and are never
+conflated with a live Hermes run (which remains explicitly out of scope in
+v0.1). Worktrees are removed after every run (`git worktree list` stays clean).
+
+```bash
+hermes-bilevel experiment run \
+  --candidate examples/candidates/demo_candidate.json \
+  --tasks examples/tasks/demo_tasks.json \
+  --backend episode --json
+```
+
 ## Architecture (thin plugin, thick engine)
 
 ```mermaid
