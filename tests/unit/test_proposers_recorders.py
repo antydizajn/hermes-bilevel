@@ -110,7 +110,7 @@ def test_promote_with_approval_still_not_live():
 def test_stats_and_eval_validators():
     assert mean([1, 2, 3]) == 2
     assert variance([1, 2, 3]) > 0
-    assert effect_size_paired([0, 0], [1, 1]) != 0
+    assert effect_size_paired([0, 1, 0], [1, 3, 2]) != 0
     c = validate_candidate({
         "target_type": "skill",
         "target_path": "skills/x/SKILL.md",
