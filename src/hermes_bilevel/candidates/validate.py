@@ -65,10 +65,14 @@ def parse_diff_paths(patch: str) -> list[str]:
             if len(parts) >= 2:
                 p1, p2 = parts[0], parts[1]
                 for prefix in ("a/", "b/"):
-                    if p1.startswith(prefix): p1 = p1[len(prefix):]
-                    if p2.startswith(prefix): p2 = p2[len(prefix):]
-                if p1 != "/dev/null": paths.add(p1)
-                if p2 != "/dev/null": paths.add(p2)
+                    if p1.startswith(prefix):
+                        p1 = p1[len(prefix):]
+                    if p2.startswith(prefix):
+                        p2 = p2[len(prefix):]
+                if p1 != "/dev/null":
+                    paths.add(p1)
+                if p2 != "/dev/null":
+                    paths.add(p2)
         elif line.startswith("rename from ") or line.startswith("copy from "):
             parts = line.split(" ", 2)
             if len(parts) > 2:

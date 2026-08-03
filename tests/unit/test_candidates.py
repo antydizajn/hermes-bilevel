@@ -44,3 +44,38 @@ def test_secret_in_patch():
 def test_forbidden_surface():
     with pytest.raises(CandidateValidationError):
         validate_candidate(_good(target_type="purity_registry"))
+
+def test_scope_prefix_mismatch():
+    # target_type executive_policy, path outside policies/executive/
+    with pytest.raises(CandidateValidationError):
+        validate_candidate(_good(
+            target_type="executive_policy",
+            target_path="skills/x/SKILL.md"
+        ))
+
+
+def test_diff_scope_prefix_mismatch():
+    with pytest.raises(CandidateValidationError):
+        validate_candidate(_good(
+            target_type="skill",
+            patch="--- a/policies/executive/policy.py\n+++ b/policies/executive/policy.py\n@@ -1,1 +1,2 @@\n+hello\n"
+        ))
+
+
+def test_git_diff_rename_copy_parsing():
+    # Test diff --git header
+    c1 = validate_candidate(_good(
+        patch="diff --git a/skills/x/SKILL.md b/skills/x/SKILL.md\n--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ -1,1 +1,2 @@\n+hello\n"
+    ))
+    assert c1["candidate_hash"].startswith("sha256:")
+
+    # Test rename to
+    c2 = validate_candidate(_good(
+        patch="rename from skills/old/SKILL.md\nrename to skills/x/SKILL.md\n--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ -1,1 +1,2 @@\n+hello\n"
+    ))
+    assert c2["candidate_hash"].startswith("sha256:")
+
+
+def test_parent_hash_strict_check():
+    with pytest.raises(CandidateValidationError):
+        validate_candidate(_good(parent_hash=None), parent_hash="sha256:someparent")
