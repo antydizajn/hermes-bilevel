@@ -1,0 +1,9 @@
+{
+  "title": "DatasetManifest",
+  "type": "object",
+  "required": [
+    "manifest_id",
+    "manifest_hash",
+    "split"
+  ]
+}

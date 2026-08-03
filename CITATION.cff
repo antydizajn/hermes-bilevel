@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "hermes-bilevel"
+version: "0.1.0"
+date-released: "2026-08-03"
+type: software
+authors:
+  - family-names: Janowska
+    given-names: Paulina
+  - name: "contributors"
+license: MIT
+abstract: >
+  Auditable bilevel optimization laboratory for Hermes Agent.
+  Observe-only by default; no automatic promotion; provider-agnostic.
+keywords:
+  - hermes-agent
+  - bilevel-optimization
+  - agent-evaluation
+  - reproducibility

@@ -1,0 +1,12 @@
+name: Experiment failure
+description: Experiment failure
+title: "[Experiment failure] "
+labels: []
+body:
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What happened?
+    validations:
+      required: true

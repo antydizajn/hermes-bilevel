@@ -1,0 +1,22 @@
+[
+  {
+    "task_id": "demo-1",
+    "schema_version": "1.0.0",
+    "title": "Demo",
+    "prompt": "Say fixme",
+    "expected_token": "FIXME",
+    "budgets": {
+      "max_turns": 3
+    }
+  },
+  {
+    "task_id": "demo-2",
+    "schema_version": "1.0.0",
+    "title": "Demo2",
+    "prompt": "Again",
+    "expected_token": "FIXME",
+    "budgets": {
+      "max_turns": 3
+    }
+  }
+]

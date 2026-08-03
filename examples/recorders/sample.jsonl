@@ -1,0 +1,1 @@
+{"record_id": "rec1", "fidelity": "LOGICAL_REQUEST", "created_at": "2026-08-03T00:00:00Z", "session_id": "s1", "turn_id": "t1", "model": "test", "request_hash": "sha256:abc", "attempt_index": 0}

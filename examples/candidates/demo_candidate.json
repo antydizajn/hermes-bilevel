@@ -1,0 +1,13 @@
+{
+  "target_type": "skill",
+  "target_path": "skills/demo/SKILL.md",
+  "hypothesis": "Adding FIXME token satisfies deterministic offline validator",
+  "mechanism": "skill_text_augmentation",
+  "patch": "--- a/skills/demo/SKILL.md\\n+++ b/skills/demo/SKILL.md\\n@@\\n+FIXME guidance line\\n",
+  "rollback_plan": "restore previous SKILL.md",
+  "proposer_backend": "manual",
+  "safety_analysis": [
+    "no hermes core paths",
+    "no approvals touched"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BilevelConfig",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "wire": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "mode"
+  ]
+}

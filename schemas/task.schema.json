@@ -1,0 +1,8 @@
+{
+  "title": "TaskSpec",
+  "type": "object",
+  "required": [
+    "task_id",
+    "schema_version"
+  ]
+}

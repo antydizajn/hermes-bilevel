@@ -1,0 +1,9 @@
+{
+  "title": "Candidate",
+  "type": "object",
+  "required": [
+    "target_type",
+    "hypothesis",
+    "patch"
+  ]
+}

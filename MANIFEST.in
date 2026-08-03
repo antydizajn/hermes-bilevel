@@ -1,0 +1,6 @@
+recursive-include src/hermes_bilevel/skills *
+recursive-include src/hermes_bilevel/resources *
+recursive-include src/hermes_bilevel/migrations *
+recursive-include src/hermes_bilevel *.yaml
+recursive-include schemas *
+include LICENSE README.md SECURITY.md

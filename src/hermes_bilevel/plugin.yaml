@@ -1,0 +1,15 @@
+name: bilevel
+version: "0.1.0"
+description: "Auditable bilevel optimization laboratory for Hermes Agent. Observe-only by default; no automatic promotion."
+author: "Paulina Janowska and contributors"
+hooks:
+  - on_session_start
+  - pre_llm_call
+  - post_llm_call
+  - pre_tool_call
+  - post_tool_call
+  - on_session_end
+  - on_session_finalize
+  - on_session_reset
+  - subagent_start
+  - subagent_stop

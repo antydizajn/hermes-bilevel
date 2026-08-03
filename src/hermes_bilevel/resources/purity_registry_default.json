@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "unknown_policy": "deny",
+  "tools": {
+    "read_file": {
+      "class": "READ_ONLY",
+      "rule": "filesystem_read"
+    },
+    "terminal": {
+      "class": "MUTATING_LOCAL",
+      "rule": "shell_general"
+    },
+    "send_message": {
+      "class": "MUTATING_REMOTE",
+      "rule": "external_message"
+    },
+    "delegate_task": {
+      "class": "SUBAGENT",
+      "rule": "subagent"
+    }
+  }
+}

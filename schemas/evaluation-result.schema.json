@@ -1,0 +1,9 @@
+{
+  "title": "EvaluationResult",
+  "type": "object",
+  "required": [
+    "result_id",
+    "candidate_hash",
+    "metrics"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "title": "EventEnvelope",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "payload_hash"
+  ]
+}

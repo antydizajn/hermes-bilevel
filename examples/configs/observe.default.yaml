@@ -1,0 +1,15 @@
+schema_version: 1
+mode: observe
+wire: false
+model_calls:
+  enabled: false
+  allow_paid_calls: false
+optimization:
+  enabled: false
+promotion:
+  enabled: false
+  automatic: false
+recording:
+  content_mode: metadata_only
+network:
+  outbound_enabled: false

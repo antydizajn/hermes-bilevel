@@ -1,0 +1,8 @@
+{
+  "title": "PromotionDossier",
+  "type": "object",
+  "required": [
+    "dossier_id",
+    "candidate_hash"
+  ]
+}

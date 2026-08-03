@@ -1,0 +1,9 @@
+{
+  "title": "Approval",
+  "type": "object",
+  "required": [
+    "candidate_hash",
+    "approved_by",
+    "decision"
+  ]
+}
