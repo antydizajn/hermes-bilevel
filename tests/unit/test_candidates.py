@@ -79,3 +79,23 @@ def test_git_diff_rename_copy_parsing():
 def test_parent_hash_strict_check():
     with pytest.raises(CandidateValidationError):
         validate_candidate(_good(parent_hash=None), parent_hash="sha256:someparent")
+
+def test_unsupported_patch_format():
+    with pytest.raises(CandidateValidationError):
+        validate_candidate(_good(patch_format="banana"))
+
+
+def test_header_only_patch_rejected():
+    with pytest.raises(CandidateValidationError):
+        # Diff header exists but there is no hunk/content
+        validate_candidate(_good(
+            patch="diff --git a/skills/x/SKILL.md b/skills/x/SKILL.md\n"
+        ))
+
+
+def test_malformed_patch_rejected():
+    with pytest.raises(CandidateValidationError):
+        # Diff with invalid hunk headers or corrupt syntax
+        validate_candidate(_good(
+            patch="--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ corrupt hunk @@\n+invalid\n"
+        ))

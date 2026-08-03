@@ -52,6 +52,9 @@ class BoundedEventQueue:
 
     def put(self, event: EventEnvelope | Mapping[str, Any]) -> bool:
         data = event.to_dict() if isinstance(event, EventEnvelope) else dict(event)
+        callback = None
+        reason = None
+        drop_data = None
         with self._lock:
             if self._closed:
                 return False
@@ -62,32 +65,44 @@ class BoundedEventQueue:
                 self._q.put_nowait(data)
                 return True
             except queue.Full:
-                if self.overflow_policy == "drop_newest":
-                    self._mark_drop_under_lock("drop_newest", data)
-                    return False
-                if self.overflow_policy == "drop_oldest":
-                    try:
-                        old = self._q.get_nowait()
-                        self._q.task_done()
-                        self._mark_drop_under_lock("drop_oldest", old)
-                    except queue.Empty:
-                        pass
-                    try:
-                        self._q.put_nowait(data)
-                        return True
-                    except queue.Full:
-                        self._mark_drop_under_lock("drop_newest_after_oldest", data)
-                        return False
-                self._mark_drop_under_lock("full", data)
-                return False
-
-    def _mark_drop_under_lock(self, reason: str, data: Mapping[str, Any]) -> None:
-        self._dropped += 1
-        if self.on_drop:
+                self._dropped += 1
+                if self.on_drop:
+                    callback = self.on_drop
+                    drop_data = data
+                    if self.overflow_policy == "drop_newest":
+                        reason = "drop_newest"
+                    elif self.overflow_policy == "drop_oldest":
+                        reason = "drop_oldest"
+                        # We try to clear oldest under lock
+                        try:
+                            old = self._q.get_nowait()
+                            self._q.task_done()
+                            # we could drop old instead
+                            drop_data = old
+                        except queue.Empty:
+                            reason = "drop_newest_after_oldest"
+                        try:
+                            self._q.put_nowait(data)
+                            # since we succeeded putting, we actually dropped the 'old' item
+                            # and returned True
+                            # but we must drop 'old' outside the lock
+                        except queue.Full:
+                            reason = "drop_newest_after_oldest"
+                            drop_data = data
+                    else:
+                        reason = "full"
+        
+        # Fire drop callback outside lock to prevent deadlock
+        if callback and reason and drop_data is not None:
             try:
-                self.on_drop(reason, data)
+                callback(reason, drop_data)
             except Exception:
                 pass
+        
+        # In drop_oldest, if we successfully put the new element, we return True
+        if self.overflow_policy == "drop_oldest" and reason == "drop_oldest":
+            return True
+        return False
 
     def _run(self) -> None:
         while True:
@@ -107,11 +122,14 @@ class BoundedEventQueue:
                     self.writer(item)
                 except Exception:
                     # Increment loss count
+                    callback = None
                     with self._lock:
                         self._dropped += 1
-                    if self.on_drop:
+                        if self.on_drop:
+                            callback = self.on_drop
+                    if callback:
                         try:
-                            self.on_drop("writer_error", item)
+                            callback("writer_error", item)
                         except Exception:
                             pass
             self._q.task_done()

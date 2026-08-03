@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+import tempfile
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from hermes_bilevel.candidates.surfaces import (
@@ -84,6 +88,44 @@ def parse_diff_paths(patch: str) -> list[str]:
     return sorted(list(paths))
 
 
+def check_patch_applicability(patch: str, workspace_root: Path | None = None) -> None:
+    """Run git apply --check in a temporary repository workspace."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        subprocess.run(["git", "init", "-q"], cwd=tmpdir, check=True)
+        subprocess.run(["git", "config", "user.name", "test"], cwd=tmpdir, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmpdir, check=True)
+
+        paths = parse_diff_paths(patch)
+        for p in paths:
+            # check if exists in real workspace
+            real_file = Path(workspace_root or ".") / p
+            tmp_file = tmp_path / p
+            tmp_file.parent.mkdir(parents=True, exist_ok=True)
+            if real_file.is_file():
+                shutil.copy2(real_file, tmp_file)
+            else:
+                tmp_file.touch()
+            subprocess.run(["git", "add", p], cwd=tmpdir, check=True)
+
+        # Stage and commit baseline if files exist
+        res = subprocess.run(["git", "status", "--porcelain"], cwd=tmpdir, capture_output=True, text=True)
+        if res.stdout.strip():
+            subprocess.run(["git", "commit", "-m", "baseline", "-q"], cwd=tmpdir, check=True)
+
+        # Write patch file
+        patch_file = tmp_path / "cand.patch"
+        patch_file.write_text(patch, encoding="utf-8")
+
+        # Run git apply --check --recount
+        apply_res = subprocess.run(["git", "apply", "--check", "--recount", "cand.patch"], cwd=tmpdir, capture_output=True, text=True)
+        if apply_res.returncode != 0:
+            raise CandidateValidationError(
+                f"patch is not applicable (git apply check failed): {apply_res.stderr.strip()}",
+                "patch_applicability"
+            )
+
+
 def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None) -> dict[str, Any]:
     if not isinstance(raw, Mapping):
         raise CandidateValidationError("candidate must be a mapping", "schema")
@@ -92,6 +134,11 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
     for k in required:
         if not raw.get(k):
             raise CandidateValidationError(f"missing field: {k}", "schema")
+
+    # Enforce exact patch format to avoid "banana" or other inputs
+    patch_format = raw.get("patch_format", "unified_diff")
+    if patch_format != "unified_diff":
+        raise CandidateValidationError(f"unsupported patch_format: {patch_format}", "patch_format")
 
     target = str(raw["target_type"])
     if target in FORBIDDEN_SURFACES:
@@ -155,6 +202,9 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
                     "path"
                 )
 
+    # Verify unified diff syntactic/git applicability
+    check_patch_applicability(patch)
+
     # secret scan on patch
     rr = redact_text(patch)
     if rr.substitutions:
@@ -176,7 +226,7 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
         "expected_metric_changes": dict(raw.get("expected_metric_changes") or {}),
         "possible_regressions": list(raw.get("possible_regressions") or []),
         "safety_analysis": list(raw.get("safety_analysis") or []),
-        "patch_format": str(raw.get("patch_format") or "unified_diff"),
+        "patch_format": patch_format,
         "patch": patch,
         "rollback_plan": str(raw.get("rollback_plan") or "restore parent artifact"),
         "proposer_backend": str(raw.get("proposer_backend") or "manual"),
@@ -195,6 +245,7 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
         "created_at": str(raw.get("created_at") or _clock.now_rfc3339()),
         "candidate_hash": ch,
         "status": "validated",
+        "validation_stage": "PATCH_APPLICABLE",
         **body,
     }
     return out

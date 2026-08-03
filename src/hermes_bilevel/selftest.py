@@ -158,7 +158,7 @@ def run_selftest() -> dict[str, Any]:
                 "target_type": "skill",
                 "target_path": "skills/demo/SKILL.md",
                 "hypothesis": "inject FIXME token to satisfy deterministic validator",
-                "patch": "--- a/skills/demo/SKILL.md\n+++ b/skills/demo/SKILL.md\n@@\n+FIXME guidance\n",
+                "patch": "--- a/skills/demo/SKILL.md\n+++ b/skills/demo/SKILL.md\n@@ -0,0 +1,1 @@\n+FIXME guidance\n",
                 "proposer_backend": "manual",
                 "dataset_manifest_hash": man.manifest_hash,
                 "purity_registry_hash": purity.registry_hash,
