@@ -1,8 +1,10 @@
 """Correlate Hermes events with provider records."""
+
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 
 @dataclass
@@ -39,7 +41,13 @@ class CorrelationEngine:
             rid = str(c.get("record_id") or c.get("id") or "")
             features = []
             score = 0.0
-            for key, weight in (("session_id", 0.3), ("turn_id", 0.3), ("model", 0.1), ("request_hash", 0.4), ("payload_hash", 0.3)):
+            for key, weight in (
+                ("session_id", 0.3),
+                ("turn_id", 0.3),
+                ("model", 0.1),
+                ("request_hash", 0.4),
+                ("payload_hash", 0.3),
+            ):
                 if left.get(key) and c.get(key) and left.get(key) == c.get(key):
                     score += weight
                     features.append(key)
@@ -54,5 +62,7 @@ class CorrelationEngine:
         alts = [s[1] for s in scored[1:4] if abs(s[0] - best[0]) < 1e-9]
         quality = "composite" if best[2].get("mode") == "composite" else "heuristic"
         if alts and quality == "heuristic":
-            return CorrelationResult(left_id, best[1], "heuristic", best[0], best[2], alternatives=alts)
+            return CorrelationResult(
+                left_id, best[1], "heuristic", best[0], best[2], alternatives=alts
+            )
         return CorrelationResult(left_id, best[1], quality, best[0], best[2], alternatives=alts)

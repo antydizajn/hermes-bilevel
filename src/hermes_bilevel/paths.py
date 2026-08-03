@@ -1,4 +1,5 @@
 """Resolve state directories without hard-coding ~/.hermes."""
+
 from __future__ import annotations
 
 import os

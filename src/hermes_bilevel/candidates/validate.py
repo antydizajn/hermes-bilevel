@@ -1,8 +1,9 @@
 """Candidate validation pipeline."""
+
 from __future__ import annotations
 
-import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from hermes_bilevel.candidates.surfaces import (
     ALLOWED_SURFACES,
@@ -32,6 +33,26 @@ def _normalize_path(path: str) -> str:
     return p
 
 
+def parse_diff_paths(patch: str) -> list[str]:
+    """Parse all paths modified in the unified diff headers (--- a/... and +++ b/...)."""
+    paths = []
+    for line in patch.splitlines():
+        if line.startswith("--- ") or line.startswith("+++ "):
+            # strip header marker and metadata
+            parts = line[4:].split()
+            if not parts:
+                continue
+            path = parts[0]
+            # Strip standard prefix patterns like a/ or b/
+            for prefix in ("a/", "b/", "i/", "w/", "o/", "c/"):
+                if path.startswith(prefix):
+                    path = path[len(prefix):]
+                    break
+            if path != "/dev/null":
+                paths.append(path)
+    return paths
+
+
 def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None) -> dict[str, Any]:
     if not isinstance(raw, Mapping):
         raise CandidateValidationError("candidate must be a mapping", "schema")
@@ -45,7 +66,9 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
     if target in FORBIDDEN_SURFACES:
         raise CandidateValidationError(f"forbidden target_type: {target}", "forbidden_surface")
     if target in EXPERIMENTAL_DISABLED:
-        raise CandidateValidationError(f"experimental surface disabled in v0.1: {target}", "experimental")
+        raise CandidateValidationError(
+            f"experimental surface disabled in v0.1: {target}", "experimental"
+        )
     if target not in ALLOWED_SURFACES:
         raise CandidateValidationError(f"target_type not allowed: {target}", "allowlist")
 
@@ -53,21 +76,38 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
     if len(hypothesis) < 8:
         raise CandidateValidationError("hypothesis too short / not falsifiable", "hypothesis")
 
+    # Validate target_path field if present
     path = _normalize_path(str(raw.get("target_path") or ""))
     if path:
-        if path.startswith(("/", "~")) or path.startswith("../") or "/../" in path:
+        if path.startswith(("/", "~")) or path.startswith("../") or "/../" in path or ".." in path.split("/"):
             raise CandidateValidationError("path traversal or absolute path", "path")
         for pref in FORBIDDEN_PATH_PREFIXES:
             if path.startswith(pref):
                 raise CandidateValidationError(f"forbidden path prefix: {pref}", "path")
         if path.endswith("approval.json") or "heldout" in path.lower():
             raise CandidateValidationError("candidate cannot touch approvals/heldout", "path")
+        if target == "skill" and not path.startswith("skills/"):
+            raise CandidateValidationError(f"target_type is skill but path is outside skills/: {path}", "path")
 
     patch = str(raw.get("patch") or "")
     if len(patch.encode("utf-8")) > MAX_PATCH_BYTES:
         raise CandidateValidationError("patch too large", "patch_size")
     if "\0" in patch:
         raise CandidateValidationError("binary patch not supported", "binary")
+
+    # Parse and validate paths in diff headers
+    diff_paths = parse_diff_paths(patch)
+    for p in diff_paths:
+        p_norm = _normalize_path(p)
+        if p_norm.startswith(("/", "~")) or p_norm.startswith("../") or "/../" in p_norm or ".." in p_norm.split("/"):
+            raise CandidateValidationError(f"path traversal or absolute path in diff: {p}", "path")
+        for pref in FORBIDDEN_PATH_PREFIXES:
+            if p_norm.startswith(pref):
+                raise CandidateValidationError(f"forbidden path prefix in diff: {pref} in {p}", "path")
+        if p_norm.endswith("approval.json") or "heldout" in p_norm.lower():
+            raise CandidateValidationError("candidate diff cannot touch approvals/heldout", "path")
+        if target == "skill" and not p_norm.startswith("skills/"):
+            raise CandidateValidationError(f"target_type is skill but diff modifies file outside skills/: {p}", "path")
 
     # secret scan on patch
     rr = redact_text(patch)

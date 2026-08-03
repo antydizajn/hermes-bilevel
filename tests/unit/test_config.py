@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from hermes_bilevel.config.schema import ConfigError, load_config, validate_config
 
 

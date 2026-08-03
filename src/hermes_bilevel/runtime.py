@@ -1,7 +1,9 @@
 """Process-local runtime singleton for observe mode."""
+
 from __future__ import annotations
 
 import threading
+from collections.abc import Mapping
 from typing import Any
 
 from hermes_bilevel.config.schema import BilevelConfig, load_config
@@ -13,20 +15,24 @@ from hermes_bilevel.storage.store import BilevelStore
 from hermes_bilevel.version import __version__
 
 _lock = threading.RLock()
-_RUNTIME: "BilevelRuntime | None" = None
+_RUNTIME: BilevelRuntime | None = None
 
 
 class BilevelRuntime:
     def __init__(self, cfg: BilevelConfig, store: BilevelStore) -> None:
         self.cfg = cfg
         self.store = store
-        self.purity = load_default_registry(unknown_policy=str(cfg.get("purity", "unknown_policy", default="deny")))
-        self.store.put_purity_registry(self.purity.registry_hash, self.purity.version, self.purity.to_dict())
+        self.purity = load_default_registry(
+            unknown_policy=str(cfg.get("purity", "unknown_policy", default="deny"))
+        )
+        self.store.put_purity_registry(
+            self.purity.registry_hash, self.purity.version, self.purity.to_dict()
+        )
 
-        def writer(event: dict[str, Any]) -> None:
+        def writer(event: Mapping[str, Any]) -> None:
             self.store.insert_event(event)
 
-        def on_drop(reason: str, data: dict[str, Any]) -> None:
+        def on_drop(reason: str, data: Mapping[str, Any]) -> None:
             self.store.record_loss(reason, {"event_type": data.get("event_type")})
 
         self.queue = BoundedEventQueue(
@@ -36,7 +42,7 @@ class BilevelRuntime:
             writer=writer,
             start_worker=True,
         )
-        self.handlers = HookHandlers(cfg, self.queue)
+        self.handlers = HookHandlers(cfg, self.queue, purity=self.purity)
         self.plugin_version = __version__
 
     def close(self) -> None:

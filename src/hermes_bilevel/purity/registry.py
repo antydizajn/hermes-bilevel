@@ -1,15 +1,18 @@
 """Versioned tool purity registry."""
+
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from hermes_bilevel.canonical import hash_canonical
 
-class PurityClass(str, Enum):
+
+class PurityClass(StrEnum):
     PURE = "PURE"
     READ_ONLY = "READ_ONLY"
     MUTATING_LOCAL = "MUTATING_LOCAL"
@@ -51,11 +54,18 @@ class PurityDecision:
 
 
 class PurityRegistry:
-    def __init__(self, tools: Mapping[str, Mapping[str, str]], version: str = "1.0.0", unknown_policy: str = "deny") -> None:
+    def __init__(
+        self,
+        tools: Mapping[str, Mapping[str, str]],
+        version: str = "1.0.0",
+        unknown_policy: str = "deny",
+    ) -> None:
         self.version = version
         self.unknown_policy = unknown_policy
         self.tools = {k: dict(v) for k, v in tools.items()}
-        self.registry_hash = hash_canonical({"version": version, "tools": self.tools, "unknown_policy": unknown_policy})
+        self.registry_hash = hash_canonical(
+            {"version": version, "tools": self.tools, "unknown_policy": unknown_policy}
+        )
 
     def classify(self, tool_name: str) -> PurityDecision:
         entry = self.tools.get(tool_name)
@@ -98,7 +108,8 @@ class PurityRegistry:
             registry_hash=self.registry_hash,
             rule_id=rule,
             reasoning=reasoning,
-            replay_allowed=replay_allowed and cls not in {PurityClass.MUTATING_REMOTE, PurityClass.UNKNOWN, PurityClass.SUBAGENT},
+            replay_allowed=replay_allowed
+            and cls not in {PurityClass.MUTATING_REMOTE, PurityClass.UNKNOWN, PurityClass.SUBAGENT},
             replay_requirements=tuple(req),
         )
 
@@ -111,7 +122,7 @@ class PurityRegistry:
         }
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "PurityRegistry":
+    def from_dict(cls, data: Mapping[str, Any]) -> PurityRegistry:
         return cls(
             tools=data.get("tools") or {},
             version=str(data.get("version", "1.0.0")),
@@ -119,7 +130,9 @@ class PurityRegistry:
         )
 
 
-def load_default_registry(path: str | Path | None = None, unknown_policy: str = "deny") -> PurityRegistry:
+def load_default_registry(
+    path: str | Path | None = None, unknown_policy: str = "deny"
+) -> PurityRegistry:
     if path:
         p = Path(path)
         data = json.loads(p.read_text(encoding="utf-8"))

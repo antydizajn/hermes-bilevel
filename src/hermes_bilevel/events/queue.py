@@ -1,11 +1,16 @@
 """Bounded non-blocking event queue with durable loss counters."""
+
 from __future__ import annotations
 
 import queue
 import threading
-from typing import Any, Callable, Mapping, Optional
+import time
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from hermes_bilevel.events.envelope import EventEnvelope
+
+_SENTINEL = object()
 
 
 class BoundedEventQueue:
@@ -25,13 +30,16 @@ class BoundedEventQueue:
         self.overflow_policy = overflow_policy
         self.on_drop = on_drop
         self.writer = writer
-        self._q: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=maxsize)
+        self._q: queue.Queue[Any] = queue.Queue(maxsize=maxsize)
         self._dropped = 0
         self._lock = threading.Lock()
         self._stop = threading.Event()
+        self._closed = False
         self._thread: threading.Thread | None = None
         if start_worker and writer is not None:
-            self._thread = threading.Thread(target=self._run, name="bilevel-event-writer", daemon=True)
+            self._thread = threading.Thread(
+                target=self._run, name="bilevel-event-writer", daemon=True
+            )
             self._thread.start()
 
     @property
@@ -43,6 +51,9 @@ class BoundedEventQueue:
         return self._q.qsize()
 
     def put(self, event: EventEnvelope | Mapping[str, Any]) -> bool:
+        with self._lock:
+            if self._closed:
+                return False
         data = event.to_dict() if isinstance(event, EventEnvelope) else dict(event)
         try:
             if self.overflow_policy == "block":
@@ -57,6 +68,7 @@ class BoundedEventQueue:
             if self.overflow_policy == "drop_oldest":
                 try:
                     old = self._q.get_nowait()
+                    self._q.task_done()
                     self._mark_drop("drop_oldest", old)
                 except queue.Empty:
                     pass
@@ -79,31 +91,42 @@ class BoundedEventQueue:
                 pass
 
     def _run(self) -> None:
-        while not self._stop.is_set():
+        while True:
             try:
                 item = self._q.get(timeout=0.1)
             except queue.Empty:
+                if self._stop.is_set():
+                    break
                 continue
+
+            if item is _SENTINEL:
+                self._q.task_done()
+                break
+
             if self.writer is not None:
                 try:
                     self.writer(item)
                 except Exception:
-                    self._mark_drop("writer_error", item if isinstance(item, dict) else {})
+                    self._mark_drop("writer_error", item)
             self._q.task_done()
 
     def flush(self, timeout: float = 2.0) -> None:
-        """Best-effort drain."""
+        """Best-effort wait until all current items in queue are processed."""
         if self.writer is None:
             return
-        end_wait = timeout
-        import time
-
         start = time.time()
-        while self._q.qsize() and (time.time() - start) < end_wait:
+        while self._q.unfinished_tasks > 0 and (time.time() - start) < timeout:
             time.sleep(0.01)
 
     def close(self) -> None:
-        self._stop.set()
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+        try:
+            self._q.put(_SENTINEL, timeout=0.5)
+        except queue.Full:
+            self._stop.set()
         self.flush()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)

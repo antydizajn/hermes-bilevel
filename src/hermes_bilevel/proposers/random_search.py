@@ -1,8 +1,10 @@
 """Non-LLM random baseline proposer."""
+
 from __future__ import annotations
 
 import random
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 
 class RandomSearchBackend:
@@ -20,9 +22,9 @@ class RandomSearchBackend:
         target = str(search_space.get("target_type") or "skill")
         path = str(search_space.get("target_path") or "skills/example/SKILL.md")
         token = str(evidence.get("target_token") or "BASELINE")
-        out = []
-        for i in range(max(0, int(count))):
-            tag = f"R{rng.randint(1000,9999)}"
+        out: list[Mapping[str, Any]] = []
+        for _i in range(max(0, int(count))):
+            tag = f"R{rng.randint(1000, 9999)}"
             out.append(
                 {
                     "target_type": target,

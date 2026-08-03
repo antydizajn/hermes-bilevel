@@ -3,18 +3,17 @@
 Uses time-sortable identifiers: prefix + hex(ms) + random hex.
 Not UUIDv7, but documented, sortable, and dependency-free.
 """
+
 from __future__ import annotations
 
-import os
 import secrets
 import time
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 
 class SystemClock:
     def now_rfc3339(self) -> str:
-        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     def monotonic_ns(self) -> int:
         return time.monotonic_ns()

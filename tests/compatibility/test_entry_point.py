@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+
 from hermes_bilevel.plugin import register
 
 
@@ -40,4 +41,5 @@ def test_register_observe_only(tmp_path, monkeypatch):
 def test_entry_point_metadata():
     # packaging metadata may be absent in editable src tests; check callable path
     from hermes_bilevel import plugin as p
+
     assert callable(p.register)

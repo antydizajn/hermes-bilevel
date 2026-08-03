@@ -1,8 +1,10 @@
 """Approval verification — candidates cannot self-approve."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
 
 from hermes_bilevel.protocols import VerificationResult
 
@@ -30,7 +32,10 @@ def verify_approval(
     if baseline_hash is not None and approval.get("baseline_hash") not in {None, baseline_hash}:
         if approval.get("baseline_hash") != baseline_hash:
             return VerificationResult(False, "baseline_hash mismatch")
-    if evaluator_contract_hash is not None and approval.get("evaluator_contract_hash") not in {None, evaluator_contract_hash}:
+    if evaluator_contract_hash is not None and approval.get("evaluator_contract_hash") not in {
+        None,
+        evaluator_contract_hash,
+    }:
         if approval.get("evaluator_contract_hash") != evaluator_contract_hash:
             return VerificationResult(False, "evaluator_contract_hash mismatch")
     if dataset_hashes:
@@ -41,11 +46,13 @@ def verify_approval(
     if not approval.get("approved_by"):
         return VerificationResult(False, "approved_by required")
     # candidate must not be approver
-    if str(approval.get("approved_by")).startswith("cand_") or approval.get("approved_by") == approval.get("candidate_hash"):
+    if str(approval.get("approved_by")).startswith("cand_") or approval.get(
+        "approved_by"
+    ) == approval.get("candidate_hash"):
         return VerificationResult(False, "candidate cannot approve itself")
     exp = approval.get("expires_at")
     if exp:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         try:
             if _parse_ts(str(exp)) < now:
                 return VerificationResult(False, "approval expired")

@@ -1,4 +1,5 @@
 """Deterministic canonicalization and hashing."""
+
 from __future__ import annotations
 
 import base64
@@ -8,8 +9,9 @@ import enum
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 _MAX_DEPTH = 32
 _MAX_ITEMS = 10_000
@@ -76,8 +78,8 @@ def canonicalize(
         return {"__path__": value.as_posix()}
     if isinstance(value, dt.datetime):
         if value.tzinfo is None:
-            value = value.replace(tzinfo=dt.timezone.utc)
-        return value.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+            value = value.replace(tzinfo=dt.UTC)
+        return value.astimezone(dt.UTC).isoformat().replace("+00:00", "Z")
     if isinstance(value, dt.date) and not isinstance(value, dt.datetime):
         return value.isoformat()
     if isinstance(value, enum.Enum):
@@ -97,30 +99,20 @@ def canonicalize(
             for k, v in value.items():
                 if not isinstance(k, str):
                     k = str(k)
-                items.append(
-                    (k, canonicalize(v, _depth=_depth + 1, _seen=_seen, _items=_items))
-                )
+                items.append((k, canonicalize(v, _depth=_depth + 1, _seen=_seen, _items=_items)))
             items.sort(key=lambda kv: kv[0])
             return {k: v for k, v in items}
         if isinstance(value, (list, tuple)):
-            return [
-                canonicalize(v, _depth=_depth + 1, _seen=_seen, _items=_items)
-                for v in value
-            ]
+            return [canonicalize(v, _depth=_depth + 1, _seen=_seen, _items=_items) for v in value]
         if isinstance(value, (set, frozenset)):
             canon_items = [
-                canonicalize(v, _depth=_depth + 1, _seen=_seen, _items=_items)
-                for v in value
+                canonicalize(v, _depth=_depth + 1, _seen=_seen, _items=_items) for v in value
             ]
             # sort by canonical JSON for stability
             canon_items.sort(key=lambda x: dumps_canonical(x))
             return {"__set__": canon_items}
         if hasattr(value, "__dict__") and not isinstance(value, type):
-            public = {
-                k: v
-                for k, v in vars(value).items()
-                if not k.startswith("_")
-            }
+            public = {k: v for k, v in vars(value).items() if not k.startswith("_")}
             return canonicalize(public, _depth=_depth + 1, _seen=_seen, _items=_items)
         # unsupported
         return {

@@ -1,9 +1,10 @@
 """Dependency-inversion protocols. No Hermes imports here."""
+
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hermes_bilevel.candidates.validate import validate_candidate
-from hermes_bilevel.evaluation.engine import evaluate_candidate_deterministic
+from hermes_bilevel.evaluation.engine import evaluate_candidate_synthetic_fixture
 
 
 def test_det_eval_pass():
@@ -14,5 +14,6 @@ def test_det_eval_pass():
         }
     )
     tasks = [{"task_id": "t1", "expected_token": "TOKEN"}]
-    r = evaluate_candidate_deterministic(c, tasks)
+    r = evaluate_candidate_synthetic_fixture(c, tasks)
     assert r["metrics"]["task_success_rate"] == 1.0
+    assert r["label"] == "FIXTURE_PASS"

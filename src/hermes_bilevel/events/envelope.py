@@ -1,8 +1,10 @@
 """Versioned event envelope."""
+
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from hermes_bilevel.canonical import hash_canonical
 from hermes_bilevel.ids import SortableIdGenerator, SystemClock

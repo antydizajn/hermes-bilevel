@@ -1,18 +1,24 @@
 """Disposable temporary-directory subprocess sandbox."""
+
 from __future__ import annotations
 
 import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 
 class TempDirSandbox:
-    def __init__(self, timeout_seconds: int = 300, env_allowlist: Sequence[str] | None = None) -> None:
+    def __init__(
+        self, timeout_seconds: int = 300, env_allowlist: Sequence[str] | None = None
+    ) -> None:
         self.timeout_seconds = timeout_seconds
-        self.env_allowlist = list(env_allowlist or ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TMP", "TEMP"])
+        self.env_allowlist = list(
+            env_allowlist or ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TMP", "TEMP"]
+        )
 
     def prepare(self, spec: Mapping[str, Any]) -> dict[str, Any]:
         td = tempfile.mkdtemp(prefix="bilevel-sbx-")

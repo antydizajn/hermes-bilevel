@@ -3,9 +3,11 @@
 Does not call models unless dual-gated by config + CLI flag at a higher layer.
 This class itself is a pure interface/test double container in v0.1.
 """
+
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any
 
 
 class HermesLlmProposalBackend:

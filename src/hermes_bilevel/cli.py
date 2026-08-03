@@ -4,26 +4,32 @@ Works as:
   - `hermes bilevel ...` via PluginContext.register_cli_command
   - `hermes-bilevel ...` console script
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from hermes_bilevel.candidates.validate import CandidateValidationError, validate_candidate
 from hermes_bilevel.config.schema import ConfigError, load_config
 from hermes_bilevel.datasets.manifest import build_manifest, lock_manifest, verify_manifest
 from hermes_bilevel.doctor import run_doctor
-from hermes_bilevel.evaluation.engine import evaluate_candidate_deterministic
+from hermes_bilevel.evaluation.engine import evaluate_candidate_synthetic_fixture
 from hermes_bilevel.governance.dossier import build_promotion_dossier
 from hermes_bilevel.governance.promote import promote_candidate
 from hermes_bilevel.paths import get_bilevel_root
 from hermes_bilevel.purity.registry import load_default_registry
-from hermes_bilevel.recording.adapters import DirectoryRecorderAdapter, HooksOnlyRecorderAdapter, JsonlRecorderAdapter
+from hermes_bilevel.recording.adapters import (
+    DirectoryRecorderAdapter,
+    HooksOnlyRecorderAdapter,
+    JsonlRecorderAdapter,
+)
 from hermes_bilevel.reporting.report import build_comparison_report, render_markdown_report
-from hermes_bilevel.runtime import get_runtime, reset_runtime
+from hermes_bilevel.runtime import get_runtime
 from hermes_bilevel.selftest import SelfTestError, run_selftest
 from hermes_bilevel.version import __version__
 
@@ -49,7 +55,9 @@ def _add_json(p: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="hermes-bilevel", description="Auditable bilevel lab for Hermes Agent")
+    parser = argparse.ArgumentParser(
+        prog="hermes-bilevel", description="Auditable bilevel lab for Hermes Agent"
+    )
     parser.add_argument("--config", default=None, help="path to bilevel config yaml/json")
     parser.add_argument("--root", default=None, help="override state root")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -96,7 +104,9 @@ def build_parser() -> argparse.ArgumentParser:
     dsub = p.add_subparsers(dest="dataset_cmd", required=True)
     b = dsub.add_parser("build")
     b.add_argument("--name", required=True)
-    b.add_argument("--split", required=True, choices=["inner_train", "outer_selection", "final_locked_heldout"])
+    b.add_argument(
+        "--split", required=True, choices=["inner_train", "outer_selection", "final_locked_heldout"]
+    )
     b.add_argument("--tasks", required=True, help="JSON file with task list")
     b.add_argument("--lock", action="store_true")
     _add_json(b)
@@ -185,7 +195,9 @@ def _load_json(path: str) -> Any:
 def dispatch(args: argparse.Namespace) -> int:
     as_json = bool(getattr(args, "json", False))
     try:
-        cfg = load_config(args.config, overrides={"storage": {"root": args.root}} if args.root else None)
+        cfg = load_config(
+            args.config, overrides={"storage": {"root": args.root}} if args.root else None
+        )
     except ConfigError as e:
         _print({"ok": False, "error": str(e)}, True)
         return 2
@@ -198,15 +210,16 @@ def dispatch(args: argparse.Namespace) -> int:
 
     if cmd == "init":
         root = get_bilevel_root(cfg.get("storage", "root") or args.root)
-        rt = get_runtime(cfg, str(root))
+        rt: Any = get_runtime(cfg, str(root))
         _print({"ok": True, "root": str(root), "integrity": rt.store.integrity_check()}, as_json)
         return 0
 
     if cmd == "doctor":
+        rt = None
         try:
             rt = get_runtime(cfg, args.root)
         except Exception:
-            rt = None
+            pass
         rep = run_doctor(cfg, runtime=rt)
         _print(rep, as_json)
         return 0 if rep["overall"] == "PASS" else 1
@@ -247,7 +260,10 @@ def dispatch(args: argparse.Namespace) -> int:
             return 0
 
     if cmd == "registry":
-        reg = load_default_registry(cfg.get("purity", "registry_path"), unknown_policy=str(cfg.get("purity", "unknown_policy", default="deny")))
+        reg = load_default_registry(
+            cfg.get("purity", "registry_path"),
+            unknown_policy=str(cfg.get("purity", "unknown_policy", default="deny")),
+        )
         if args.registry_cmd == "hash":
             _print({"registry_hash": reg.registry_hash}, as_json)
         else:
@@ -266,7 +282,11 @@ def dispatch(args: argparse.Namespace) -> int:
         from hermes_bilevel.protocols import RecorderSource
 
         kind = args.kind
-        adapter = {"jsonl": JsonlRecorderAdapter(), "directory": DirectoryRecorderAdapter(), "hooks": HooksOnlyRecorderAdapter()}[kind]
+        adapter: Any = {
+            "jsonl": JsonlRecorderAdapter(),
+            "directory": DirectoryRecorderAdapter(),
+            "hooks": HooksOnlyRecorderAdapter(),
+        }[kind]
         src = RecorderSource(source_id="cli", kind=kind, path=args.path)
         if args.recorder_cmd == "ingest":
             recs = list(adapter.iter_records(src))
@@ -284,7 +304,11 @@ def dispatch(args: argparse.Namespace) -> int:
             man = build_manifest(args.name, args.split, tasks)
             if args.lock:
                 man = lock_manifest(man)
-            out = get_bilevel_root(cfg.get("storage", "root") or args.root) / "datasets" / f"{man.manifest_id}.json"
+            out = (
+                get_bilevel_root(cfg.get("storage", "root") or args.root)
+                / "datasets"
+                / f"{man.manifest_id}.json"
+            )
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(json.dumps(man.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
             rt = get_runtime(cfg, args.root)
@@ -299,9 +323,13 @@ def dispatch(args: argparse.Namespace) -> int:
         if args.dataset_cmd == "lock":
             from hermes_bilevel.datasets.manifest import DatasetManifest
 
-            man = DatasetManifest(**{k: data[k] for k in DatasetManifest.__dataclass_fields__ if k in data})
+            man = DatasetManifest(
+                **{k: data[k] for k in DatasetManifest.__dataclass_fields__ if k in data}
+            )
             locked = lock_manifest(man)
-            Path(args.manifest).write_text(json.dumps(locked.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+            Path(args.manifest).write_text(
+                json.dumps(locked.to_dict(), indent=2, sort_keys=True), encoding="utf-8"
+            )
             _print({"ok": True, "manifest_hash": locked.manifest_hash}, as_json)
             return 0
         if args.dataset_cmd == "inspect":
@@ -322,7 +350,7 @@ def dispatch(args: argparse.Namespace) -> int:
         if args.candidate_cmd == "import":
             raw = _load_json(args.path)
             try:
-                cand = validate_candidate(raw)
+                cand: Any = validate_candidate(raw)
             except CandidateValidationError as e:
                 _print({"ok": False, "code": e.code, "reason": e.reason}, True)
                 return 1
@@ -330,7 +358,15 @@ def dispatch(args: argparse.Namespace) -> int:
             rt.store.put_candidate(cand)
             out = rt.store.paths["candidates"] / f"{cand['candidate_id']}.json"
             out.write_text(json.dumps(cand, indent=2, sort_keys=True), encoding="utf-8")
-            _print({"ok": True, "candidate_id": cand["candidate_id"], "candidate_hash": cand["candidate_hash"], "path": str(out)}, as_json)
+            _print(
+                {
+                    "ok": True,
+                    "candidate_id": cand["candidate_id"],
+                    "candidate_hash": cand["candidate_hash"],
+                    "path": str(out),
+                },
+                as_json,
+            )
             return 0
         # inspect/validate/diff/lineage
         target = args.id_or_path
@@ -355,7 +391,14 @@ def dispatch(args: argparse.Namespace) -> int:
             _print({"patch": data.get("patch")}, as_json)
             return 0
         if args.candidate_cmd == "lineage":
-            _print({"candidate_id": data.get("candidate_id"), "parent_hash": data.get("parent_hash"), "candidate_hash": data.get("candidate_hash")}, as_json)
+            _print(
+                {
+                    "candidate_id": data.get("candidate_id"),
+                    "parent_hash": data.get("parent_hash"),
+                    "candidate_hash": data.get("candidate_hash"),
+                },
+                as_json,
+            )
             return 0
         _print(data, as_json or True)
         return 0
@@ -364,7 +407,11 @@ def dispatch(args: argparse.Namespace) -> int:
         if args.allow_model_call and not cfg.get("model_calls", "enabled"):
             _print({"ok": False, "reason": "model_calls.enabled=false"}, True)
             return 2
-        cand = _load_json(args.candidate) if Path(args.candidate).exists() else get_runtime(cfg, args.root).store.get_candidate(args.candidate)
+        cand = (
+            _load_json(args.candidate)
+            if Path(args.candidate).exists()
+            else get_runtime(cfg, args.root).store.get_candidate(args.candidate)
+        )
         if not cand:
             _print({"ok": False, "reason": "candidate not found"}, True)
             return 1
@@ -373,7 +420,7 @@ def dispatch(args: argparse.Namespace) -> int:
             _print({"ok": True, "dry_run": True, "tasks": len(tasks)}, as_json)
             return 0
         purity = load_default_registry()
-        result = evaluate_candidate_deterministic(cand, tasks, purity=purity)
+        result = evaluate_candidate_synthetic_fixture(cand, tasks, purity=purity)
         get_runtime(cfg, args.root).store.put_evaluation_result(result)
         _print(result, as_json or True)
         return 0
@@ -393,7 +440,11 @@ def dispatch(args: argparse.Namespace) -> int:
         return 0
 
     if cmd == "dossier":
-        cand = _load_json(args.candidate) if Path(args.candidate).exists() else get_runtime(cfg, args.root).store.get_candidate(args.candidate)
+        cand = (
+            _load_json(args.candidate)
+            if Path(args.candidate).exists()
+            else get_runtime(cfg, args.root).store.get_candidate(args.candidate)
+        )
         results = _load_json(args.results)
         dos = build_promotion_dossier(
             cand or {},
@@ -412,7 +463,10 @@ def dispatch(args: argparse.Namespace) -> int:
                 "schema_version": "1.0.0",
                 "candidate_hash": args.candidate_hash,
                 "approved_by": args.approved_by,
-                "approved_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat().replace("+00:00", "Z"),
+                "approved_at": __import__("datetime")
+                .datetime.now(__import__("datetime").timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
                 "expires_at": None,
                 "scope": "dossier_only",
                 "decision": "approve",
@@ -428,7 +482,11 @@ def dispatch(args: argparse.Namespace) -> int:
             return 0 if vr.ok else 1
 
     if cmd == "promote":
-        cand = _load_json(args.candidate) if Path(args.candidate).exists() else get_runtime(cfg, args.root).store.get_candidate(args.candidate)
+        cand = (
+            _load_json(args.candidate)
+            if Path(args.candidate).exists()
+            else get_runtime(cfg, args.root).store.get_candidate(args.candidate)
+        )
         approval = _load_json(args.approval) if args.approval else None
         res = promote_candidate(
             cand or {},
@@ -440,7 +498,14 @@ def dispatch(args: argparse.Namespace) -> int:
         return 0 if res.get("ok") else 2
 
     if cmd == "rollback":
-        _print({"ok": False, "status": "NOT_IMPLEMENTED_BY_DESIGN", "reason": "live rollback deferred; dossier-only v0.1"}, True)
+        _print(
+            {
+                "ok": False,
+                "status": "NOT_IMPLEMENTED_BY_DESIGN",
+                "reason": "live rollback deferred; dossier-only v0.1",
+            },
+            True,
+        )
         return 2
 
     if cmd == "integrity":
@@ -449,17 +514,39 @@ def dispatch(args: argparse.Namespace) -> int:
         return 0
 
     if cmd == "audit":
-        _print({"ok": True, "note": "audit events are written for gated ops; query state.db audit_events"}, as_json)
+        rt = get_runtime(cfg, args.root)
+        with rt.store._lock:
+            rows = rt.store._conn.execute(
+                "SELECT * FROM audit_events ORDER BY created_at DESC LIMIT 100"
+            ).fetchall()
+        events = [dict(row) for row in rows]
+        _print({"ok": True, "audit_events": events}, as_json or True)
         return 0
 
     if cmd in {"export", "import", "gc"}:
-        _print({"ok": True, "status": "STUB", "command": cmd, "note": "basic export/import/gc planned; use sqlite backup for now"}, as_json)
-        return 0
+        _print(
+            {
+                "ok": False,
+                "status": "NOT_IMPLEMENTED",
+                "command": cmd,
+                "reason": f"{cmd} command is planned; use SQLite backup/vacuum in v0.1",
+            },
+            True,
+        )
+        return 2
 
     # experiment stubs
     if cmd == "experiment":
-        _print({"ok": True, "status": "STUB", "command": args.experiment_cmd}, as_json)
-        return 0
+        _print(
+            {
+                "ok": False,
+                "status": "NOT_IMPLEMENTED",
+                "command": getattr(args, "experiment_cmd", "run"),
+                "reason": "multi-seed active experiment loop deferred; use evaluate command in v0.1",
+            },
+            True,
+        )
+        return 2
 
     _print({"ok": False, "error": f"unknown command {cmd}"}, True)
     return 2
@@ -479,6 +566,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 # --- Hermes plugin CLI registration helpers ---
 
+
 def setup_hermes_cli(subparser: argparse.ArgumentParser) -> None:
     """Populate `hermes bilevel` subparser with the same commands."""
     # Rebuild using our parser's subparsers by parsing known structure.
@@ -486,7 +574,9 @@ def setup_hermes_cli(subparser: argparse.ArgumentParser) -> None:
     subparser.add_argument("--config", default=None)
     subparser.add_argument("--root", default=None)
     # Use parent parser pattern: add a catch-all remaining args and re-parse.
-    subparser.add_argument("bilevel_args", nargs=argparse.REMAINDER, help="bilevel subcommand and args")
+    subparser.add_argument(
+        "bilevel_args", nargs=argparse.REMAINDER, help="bilevel subcommand and args"
+    )
 
 
 def hermes_bilevel_command(args: argparse.Namespace) -> int:

@@ -1,7 +1,9 @@
 """Metric definitions — precise names only."""
+
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 
 def compute_basic_metrics(

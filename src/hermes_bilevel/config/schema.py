@@ -1,11 +1,13 @@
 """Typed configuration with fail-closed defaults."""
+
 from __future__ import annotations
 
 import copy
 import json
-from dataclasses import asdict, dataclass, field, fields
+from collections.abc import Mapping, MutableMapping
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any
 
 from hermes_bilevel.canonical import hash_canonical
 
@@ -108,7 +110,9 @@ class ConfigError(ValueError):
     pass
 
 
-def _deep_merge(base: MutableMapping[str, Any], override: Mapping[str, Any]) -> MutableMapping[str, Any]:
+def _deep_merge(
+    base: MutableMapping[str, Any], override: Mapping[str, Any]
+) -> MutableMapping[str, Any]:
     for k, v in override.items():
         if isinstance(v, Mapping) and isinstance(base.get(k), Mapping):
             _deep_merge(base[k], v)  # type: ignore[arg-type]
@@ -165,9 +169,13 @@ class BilevelConfig:
             "alter_model_routing",
         ):
             if b.get(key):
-                raise ConfigError(f"behavior.{key}=true is not allowed in observe-default plugin activation")
+                raise ConfigError(
+                    f"behavior.{key}=true is not allowed in observe-default plugin activation"
+                )
         if self.data.get("wire"):
-            raise ConfigError("wire=true requires explicit dual activation and is blocked for default observe mode")
+            raise ConfigError(
+                "wire=true requires explicit dual activation and is blocked for default observe mode"
+            )
 
 
 def validate_config(raw: Mapping[str, Any] | None) -> BilevelConfig:
@@ -199,7 +207,10 @@ def validate_config(raw: Mapping[str, Any] | None) -> BilevelConfig:
     if data.get("promotion", {}).get("automatic") is True:
         raise ConfigError("promotion.automatic=true is NOT_IMPLEMENTED_BY_DESIGN")
 
-    if data.get("optimization", {}).get("code_candidates") is True and data.get("mode") == "observe":
+    if (
+        data.get("optimization", {}).get("code_candidates") is True
+        and data.get("mode") == "observe"
+    ):
         raise ConfigError("code_candidates cannot be enabled in observe mode")
 
     overflow = data.get("hooks", {}).get("overflow_policy", "drop_newest")
@@ -210,7 +221,9 @@ def validate_config(raw: Mapping[str, Any] | None) -> BilevelConfig:
     return cfg
 
 
-def load_config(path: str | Path | None = None, overrides: Mapping[str, Any] | None = None) -> BilevelConfig:
+def load_config(
+    path: str | Path | None = None, overrides: Mapping[str, Any] | None = None
+) -> BilevelConfig:
     raw: dict[str, Any] = {}
     if path is not None:
         p = Path(path)

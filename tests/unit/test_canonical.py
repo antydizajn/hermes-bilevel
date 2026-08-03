@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-import math
 import pytest
-from hermes_bilevel.canonical import CanonicalizationError, canonicalize, dumps_canonical, hash_canonical
+
+from hermes_bilevel.canonical import (
+    CanonicalizationError,
+    canonicalize,
+    dumps_canonical,
+    hash_canonical,
+)
 
 
 def test_mapping_order_independent():

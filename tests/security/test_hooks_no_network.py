@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+
 from hermes_bilevel.config.schema import load_config
 from hermes_bilevel.events.queue import BoundedEventQueue
 from hermes_bilevel.hooks.handlers import HookHandlers

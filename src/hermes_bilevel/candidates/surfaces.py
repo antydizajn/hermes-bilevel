@@ -1,4 +1,5 @@
 """Allowed and forbidden candidate surfaces."""
+
 from __future__ import annotations
 
 ALLOWED_SURFACES = frozenset(

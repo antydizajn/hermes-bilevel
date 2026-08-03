@@ -1,7 +1,7 @@
 """Deterministic offline self-test. No network, no model, no live mutation."""
+
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -11,7 +11,7 @@ from hermes_bilevel.canonical import hash_canonical
 from hermes_bilevel.config.schema import load_config
 from hermes_bilevel.correlation.engine import CorrelationEngine
 from hermes_bilevel.datasets.manifest import build_manifest, lock_manifest, verify_manifest
-from hermes_bilevel.evaluation.engine import evaluate_candidate_deterministic
+from hermes_bilevel.evaluation.engine import evaluate_candidate_synthetic_fixture
 from hermes_bilevel.governance.dossier import build_promotion_dossier
 from hermes_bilevel.optimization.pareto import nondominated_sort
 from hermes_bilevel.purity.registry import load_default_registry
@@ -52,15 +52,37 @@ def run_selftest() -> dict[str, Any]:
         rt = BilevelRuntime(cfg, store)
         # synthetic events including retry/fallback/stream markers in payload
         rt.handlers.on_session_start(session_id="s1", platform="cli", model="test-model")
-        rt.handlers.pre_llm_call(session_id="s1", turn_id="t1", user_message="hello", model="test-model")
-        rt.handlers.pre_tool_call(session_id="s1", turn_id="t1", tool_name="read_file", args={"path": "x"})
-        rt.handlers.post_tool_call(session_id="s1", turn_id="t1", tool_name="read_file", args={"path": "x"}, result="ok")
-        rt.handlers.post_llm_call(session_id="s1", turn_id="t1", response="world", model="test-model")
+        rt.handlers.pre_llm_call(
+            session_id="s1", turn_id="t1", user_message="hello", model="test-model"
+        )
+        rt.handlers.pre_tool_call(
+            session_id="s1", turn_id="t1", tool_name="read_file", args={"path": "x"}
+        )
+        rt.handlers.post_tool_call(
+            session_id="s1", turn_id="t1", tool_name="read_file", args={"path": "x"}, result="ok"
+        )
+        rt.handlers.post_llm_call(
+            session_id="s1", turn_id="t1", response="world", model="test-model"
+        )
         # retry/fallback/stream synthetic emit via queue
         from hermes_bilevel.events.envelope import make_event
 
-        rt.queue.put(make_event("provider_attempt", {"attempt_index": 0, "is_stream": True, "status": "start"}, session_id="s1", turn_id="t1"))
-        rt.queue.put(make_event("provider_attempt", {"attempt_index": 1, "is_fallback": True, "status": "retry"}, session_id="s1", turn_id="t1"))
+        rt.queue.put(
+            make_event(
+                "provider_attempt",
+                {"attempt_index": 0, "is_stream": True, "status": "start"},
+                session_id="s1",
+                turn_id="t1",
+            )
+        )
+        rt.queue.put(
+            make_event(
+                "provider_attempt",
+                {"attempt_index": 1, "is_fallback": True, "status": "retry"},
+                session_id="s1",
+                turn_id="t1",
+            )
+        )
         rt.queue.flush(timeout=3.0)
         n_events = store.count_events()
         if n_events < 5:
@@ -71,7 +93,13 @@ def run_selftest() -> dict[str, Any]:
         eng = CorrelationEngine()
         left = {"event_id": "e1", "session_id": "s1", "turn_id": "t1", "model": "m"}
         cands = [
-            {"record_id": "r1", "session_id": "s1", "turn_id": "t1", "model": "m", "request_hash": "h"},
+            {
+                "record_id": "r1",
+                "session_id": "s1",
+                "turn_id": "t1",
+                "model": "m",
+                "request_hash": "h",
+            },
             {"record_id": "r2", "session_id": "other"},
         ]
         cr = eng.correlate(left, cands)
@@ -114,7 +142,13 @@ def run_selftest() -> dict[str, Any]:
         ok("dataset lock/verify", man.manifest_hash[:18])
 
         # heldout separate
-        held = lock_manifest(build_manifest("demo-hold", "final_locked_heldout", [{"task_id": "hold1", "prompt": "secret-holdout"}]))
+        held = lock_manifest(
+            build_manifest(
+                "demo-hold",
+                "final_locked_heldout",
+                [{"task_id": "hold1", "prompt": "secret-holdout"}],
+            )
+        )
         store.put_dataset_manifest(held.to_dict())
         ok("heldout manifest", held.manifest_hash[:18])
 
@@ -175,7 +209,7 @@ def run_selftest() -> dict[str, Any]:
         ok("sandbox disposable run")
 
         # evaluate
-        ev = evaluate_candidate_deterministic(valid, tasks, purity=purity)
+        ev = evaluate_candidate_synthetic_fixture(valid, tasks, purity=purity)
         store.put_evaluation_result(ev)
         if ev["metrics"]["task_success_rate"] < 1.0:
             fail("deterministic validators", str(ev["metrics"]))
@@ -194,7 +228,10 @@ def run_selftest() -> dict[str, Any]:
         report = build_comparison_report(
             baseline=None,
             results=[ev, other],
-            dataset_hashes={"inner_train": man.manifest_hash, "final_locked_heldout": held.manifest_hash},
+            dataset_hashes={
+                "inner_train": man.manifest_hash,
+                "final_locked_heldout": held.manifest_hash,
+            },
             recording_fidelity="HOOK_METADATA",
             exact_provider_boundary_verified=False,
         )

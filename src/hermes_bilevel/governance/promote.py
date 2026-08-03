@@ -3,9 +3,11 @@
 v0.1: dossier-only. Live promotion returns NOT_IMPLEMENTED_BY_DESIGN unless
 explicitly enabled AND approval verified — still refuses automatic mode.
 """
+
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from hermes_bilevel.governance.approval import verify_approval
 

@@ -1,7 +1,9 @@
 """Deterministic evaluation (no model judge required)."""
+
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from hermes_bilevel.canonical import hash_canonical
 from hermes_bilevel.evaluation.metrics import compute_basic_metrics
@@ -36,17 +38,17 @@ def _run_validators(task: Mapping[str, Any], artifacts: Mapping[str, Any]) -> bo
     return True
 
 
-def evaluate_candidate_deterministic(
+def evaluate_candidate_synthetic_fixture(
     candidate: Mapping[str, Any],
     tasks: Sequence[Mapping[str, Any]],
     *,
     purity: PurityRegistry | None = None,
     seeds: Sequence[int] | None = None,
-    mode: str = "sandboxed_live_episode",
+    mode: str = "synthetic_fixture",
 ) -> dict[str, Any]:
     """Evaluate candidate with deterministic validators only.
 
-    mode labels: frozen_replay | counterfactual | shadow | sandboxed_live_episode
+    mode labels: synthetic_fixture
     """
     seeds = list(seeds or [0])
     successes: list[bool] = []
@@ -70,7 +72,7 @@ def evaluate_candidate_deterministic(
                 if d.classification.value == "MUTATING_REMOTE":
                     # not a violation to list; replay would be denied elsewhere
                     pass
-            for tname in denied:
+            for _tname in denied:
                 pass
         # simulate deterministic artifact from patch content hash interaction with task
         # This is intentionally simple and fully deterministic for offline labs.
@@ -82,7 +84,11 @@ def evaluate_candidate_deterministic(
             "contains_expected_token": artifact_ok,
             "output": "ok" if artifact_ok else "miss",
         }
-        ok = hard_gate_ok and _run_validators(task, artifacts) and artifacts["contains_expected_token"]
+        ok = (
+            hard_gate_ok
+            and _run_validators(task, artifacts)
+            and artifacts["contains_expected_token"]
+        )
         # if task has explicit validators, those dominate contains_expected_token only when present
         if task.get("validators"):
             ok = hard_gate_ok and _run_validators(task, artifacts)
@@ -101,16 +107,20 @@ def evaluate_candidate_deterministic(
         tool_calls=int(candidate.get("tool_call_count") or 0),
         purity_violations=purity_violations,
     )
-    label = "INVALID" if not hard_gate_ok else (
-        "IMPROVED" if metrics["task_success_rate"] >= 1.0 else (
-            "REGRESSED" if metrics["task_success_rate"] == 0.0 else "INCONCLUSIVE"
+    label = (
+        "INVALID"
+        if not hard_gate_ok
+        else (
+            "FIXTURE_PASS"
+            if metrics["task_success_rate"] >= 1.0
+            else "FIXTURE_FAIL"
         )
     )
     body = {
         "result_id": _ids.new_id("eval"),
         "created_at": _clock.now_rfc3339(),
         "candidate_hash": candidate.get("candidate_hash"),
-        "evaluation_mode": mode,
+        "evaluation_mode": "synthetic_fixture",
         "metrics": metrics,
         "per_task": per_task,
         "hard_gate_ok": hard_gate_ok,

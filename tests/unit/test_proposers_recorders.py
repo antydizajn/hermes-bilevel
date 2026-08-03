@@ -1,36 +1,38 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from datetime import UTC
 
 import pytest
 
+from hermes_bilevel.candidates.validate import validate_candidate
+from hermes_bilevel.config.schema import ConfigError, load_config, validate_config
+from hermes_bilevel.evaluation.engine import evaluate_candidate_synthetic_fixture
+from hermes_bilevel.events.envelope import make_event
+from hermes_bilevel.events.queue import BoundedEventQueue
+from hermes_bilevel.governance.approval import verify_approval
+from hermes_bilevel.governance.promote import promote_candidate
+from hermes_bilevel.paths import get_bilevel_root, get_hermes_home
+from hermes_bilevel.proposers.llm import HermesLlmProposalBackend
 from hermes_bilevel.proposers.manual import ManualProposalBackend
 from hermes_bilevel.proposers.random_search import RandomSearchBackend
-from hermes_bilevel.proposers.llm import HermesLlmProposalBackend
+from hermes_bilevel.protocols import ProviderRecord, RecorderSource
 from hermes_bilevel.recording.adapters import (
     DirectoryRecorderAdapter,
     HooksOnlyRecorderAdapter,
     JsonlRecorderAdapter,
 )
-from hermes_bilevel.protocols import ProviderRecord, RecorderSource
-from hermes_bilevel.governance.approval import verify_approval
-from hermes_bilevel.governance.promote import promote_candidate
-from hermes_bilevel.statistics.stats import effect_size_paired, mean, variance
-from hermes_bilevel.evaluation.engine import evaluate_candidate_deterministic
-from hermes_bilevel.candidates.validate import validate_candidate
 from hermes_bilevel.sandbox.tempdir import TempDirSandbox
-from hermes_bilevel.paths import get_hermes_home, get_bilevel_root
-from hermes_bilevel.config.schema import load_config, ConfigError, validate_config
-from hermes_bilevel.events.queue import BoundedEventQueue
-from hermes_bilevel.events.envelope import make_event
+from hermes_bilevel.statistics.stats import effect_size_paired, mean, variance
 
 
 def test_manual_and_random_proposers():
     man = ManualProposalBackend([{"hypothesis": "h", "patch": "+x"}])
     assert len(man.propose({}, {}, 1, {})) == 1
     rnd = RandomSearchBackend(seed=1)
-    props = rnd.propose({"target_token": "T", "baseline_hash": "p"}, {"target_type": "skill"}, 3, {})
+    props = rnd.propose(
+        {"target_token": "T", "baseline_hash": "p"}, {"target_type": "skill"}, 3, {}
+    )
     assert len(props) == 3
     assert props[0]["proposer_backend"] == "random_search"
 
@@ -51,14 +53,20 @@ def test_recorders(tmp_path):
     assert h.verify_record(ProviderRecord("1", "HOOK_METADATA", "t")).ok
 
     p = tmp_path / "a.jsonl"
-    p.write_text(json.dumps({
-        "record_id": "r1",
-        "created_at": "t",
-        "session_id": "s",
-        "turn_id": "t1",
-        "attempt_index": 1,
-        "is_fallback": True,
-    }) + "\n", encoding="utf-8")
+    p.write_text(
+        json.dumps(
+            {
+                "record_id": "r1",
+                "created_at": "t",
+                "session_id": "s",
+                "turn_id": "t1",
+                "attempt_index": 1,
+                "is_fallback": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     j = JsonlRecorderAdapter()
     recs = list(j.iter_records(RecorderSource("s", "jsonl", path=str(p))))
     assert len(recs) == 1
@@ -66,15 +74,15 @@ def test_recorders(tmp_path):
     assert not j.verify_record(ProviderRecord("", "LOGICAL_REQUEST", "t")).ok
 
     d = DirectoryRecorderAdapter()
-    recs2 = list(d.iter_records(RecorderSource("s", "dir", path=str(tmp_path)))
-    )
+    recs2 = list(d.iter_records(RecorderSource("s", "dir", path=str(tmp_path))))
     assert len(recs2) == 1
     assert d.probe().fidelity == "PROVIDER_ATTEMPT"
 
 
 def test_approval_expiry_and_dataset_mismatch():
-    from datetime import datetime, timezone, timedelta
-    past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    from datetime import datetime, timedelta
+
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat().replace("+00:00", "Z")
     vr = verify_approval(
         {
             "decision": "approve",
@@ -111,18 +119,22 @@ def test_stats_and_eval_validators():
     assert mean([1, 2, 3]) == 2
     assert variance([1, 2, 3]) > 0
     assert effect_size_paired([0, 1, 0], [1, 3, 2]) != 0
-    c = validate_candidate({
-        "target_type": "skill",
-        "target_path": "skills/x/SKILL.md",
-        "hypothesis": "validator path works here",
-        "patch": "output=ok\n",
-    })
-    tasks = [{
-        "task_id": "t",
-        "validators": [{"type": "equals", "key": "output", "value": "ok"}],
-        "always_pass": True,
-    }]
-    r = evaluate_candidate_deterministic(c, tasks)
+    c = validate_candidate(
+        {
+            "target_type": "skill",
+            "target_path": "skills/x/SKILL.md",
+            "hypothesis": "validator path works here",
+            "patch": "output=ok\n",
+        }
+    )
+    tasks = [
+        {
+            "task_id": "t",
+            "validators": [{"type": "equals", "key": "output", "value": "ok"}],
+            "always_pass": True,
+        }
+    ]
+    r = evaluate_candidate_synthetic_fixture(c, tasks)
     assert r["hard_gate_ok"] is True
 
 
@@ -152,7 +164,9 @@ def test_config_invalid_mode_and_yaml(tmp_path):
 
 def test_queue_drop_oldest_and_writer():
     seen = []
-    q = BoundedEventQueue(maxsize=1, overflow_policy="drop_oldest", writer=lambda e: seen.append(e), start_worker=True)
+    q = BoundedEventQueue(
+        maxsize=1, overflow_policy="drop_oldest", writer=lambda e: seen.append(e), start_worker=True
+    )
     assert q.put(make_event("a", {"x": 1})) is True
     assert q.put(make_event("b", {"x": 2})) in {True, False}
     q.flush(timeout=1.0)

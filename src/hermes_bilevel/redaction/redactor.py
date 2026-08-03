@@ -1,9 +1,10 @@
 """Secret redaction before persistence."""
+
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Sequence
 
 # Patterns: (rule_id, compiled regex)
 _DEFAULT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -16,13 +17,27 @@ _DEFAULT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("basic_auth_header", re.compile(r"(?i)(authorization\s*:\s*basic\s+)([A-Za-z0-9+/=]{8,})")),
     ("cookie_header", re.compile(r"(?i)(cookie\s*:\s*)([^\n]+)")),
     ("password_assign", re.compile(r"(?i)(password\s*[=:]\s*)([^\s#'\"]+)")),
-    ("api_key_assign", re.compile(r"(?i)((?:api[_-]?key|secret[_-]?key|access[_-]?token)\s*[=:]\s*)([^\s#'\"]+)")),
-    ("private_key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
+    (
+        "api_key_assign",
+        re.compile(r"(?i)((?:api[_-]?key|secret[_-]?key|access[_-]?token)\s*[=:]\s*)([^\s#'\"]+)"),
+    ),
+    (
+        "private_key",
+        re.compile(
+            r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+        ),
+    ),
     ("db_url_pass", re.compile(r"((?:postgres|mysql|mongodb|redis)://[^:/\s]+:)([^@\s]+)(@)")),
     ("oauth_refresh", re.compile(r"(?i)(refresh[_-]?token\s*[=:]\s*)([^\s#'\"]+)")),
     ("xai_key", re.compile(r"xai-[A-Za-z0-9]{20,}")),
-    ("env_secret_line", re.compile(r"(?m)^([A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*=\s*)(.+)$")),
-    ("query_secret", re.compile(r"([?&](?:token|key|password|secret|access_token)=)([^&\s]+)", re.I)),
+    (
+        "env_secret_line",
+        re.compile(r"(?m)^([A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*=\s*)(.+)$"),
+    ),
+    (
+        "query_secret",
+        re.compile(r"([?&](?:token|key|password|secret|access_token)=)([^&\s]+)", re.I),
+    ),
 ]
 
 _PLACEHOLDER = "[REDACTED:{rule}]"
@@ -71,6 +86,7 @@ def redact_text(
     fired: list[str] = []
     subs = 0
     for rule_id, cre in patterns:
+
         def _sub(m: re.Match[str], rid: str = rule_id) -> str:
             nonlocal subs
             subs += 1

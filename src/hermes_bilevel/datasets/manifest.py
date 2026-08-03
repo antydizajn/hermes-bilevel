@@ -1,8 +1,10 @@
 """Immutable dataset manifests with split isolation."""
+
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from hermes_bilevel.canonical import hash_canonical
 from hermes_bilevel.ids import SortableIdGenerator, SystemClock

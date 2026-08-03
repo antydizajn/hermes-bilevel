@@ -1,12 +1,14 @@
 """SQLite + content-addressed blob storage."""
+
 from __future__ import annotations
 
 import json
 import os
 import sqlite3
 import threading
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from hermes_bilevel.canonical import sha256_bytes
 from hermes_bilevel.ids import SortableIdGenerator, SystemClock
@@ -61,7 +63,9 @@ class BilevelStore:
         self.clock = SystemClock()
         self.ids = SortableIdGenerator()
         self._lock = threading.RLock()
-        self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False, isolation_level=None)
+        self._conn = sqlite3.connect(
+            str(self.db_path), check_same_thread=False, isolation_level=None
+        )
         self._conn.row_factory = sqlite3.Row
         self._conn.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
         self._conn.execute("PRAGMA foreign_keys=ON")
@@ -92,8 +96,12 @@ class BilevelStore:
 
     def insert_event(self, event: Mapping[str, Any]) -> None:
         payload = event.get("payload") or {}
-        payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        redaction_json = json.dumps(event.get("redaction_summary") or {}, ensure_ascii=False, sort_keys=True)
+        payload_json = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        redaction_json = json.dumps(
+            event.get("redaction_summary") or {}, ensure_ascii=False, sort_keys=True
+        )
         with self._lock:
             self._conn.execute(
                 """
@@ -125,7 +133,9 @@ class BilevelStore:
                 ),
             )
 
-    def record_loss(self, reason: str, details: Mapping[str, Any] | None = None, count: int = 1) -> None:
+    def record_loss(
+        self, reason: str, details: Mapping[str, Any] | None = None, count: int = 1
+    ) -> None:
         with self._lock:
             self._conn.execute(
                 "INSERT INTO event_losses(created_at, reason, count, details_json) VALUES (?,?,?,?)",
@@ -139,7 +149,9 @@ class BilevelStore:
 
     def loss_count(self) -> int:
         with self._lock:
-            row = self._conn.execute("SELECT COALESCE(SUM(count),0) AS c FROM event_losses").fetchone()
+            row = self._conn.execute(
+                "SELECT COALESCE(SUM(count),0) AS c FROM event_losses"
+            ).fetchone()
         return int(row["c"])
 
     def upsert_session(self, session_id: str, **meta: Any) -> None:
@@ -158,11 +170,21 @@ class BilevelStore:
                     meta.get("model"),
                     meta.get("profile_name"),
                     meta.get("status", "open"),
-                    json.dumps({k: v for k, v in meta.items() if k not in {"platform", "model", "profile_name", "status"}}, ensure_ascii=False, sort_keys=True),
+                    json.dumps(
+                        {
+                            k: v
+                            for k, v in meta.items()
+                            if k not in {"platform", "model", "profile_name", "status"}
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
                 ),
             )
 
-    def insert_audit(self, actor: str, command: str, args: Mapping[str, Any], result: str, **kw: Any) -> str:
+    def insert_audit(
+        self, actor: str, command: str, args: Mapping[str, Any], result: str, **kw: Any
+    ) -> str:
         audit_id = self.ids.new_id("aud")
         with self._lock:
             self._conn.execute(
@@ -184,9 +206,13 @@ class BilevelStore:
             )
         return audit_id
 
-    def save_json_artifact(self, kind: str, body: Mapping[str, Any], digest: str | None = None) -> str:
+    def save_json_artifact(
+        self, kind: str, body: Mapping[str, Any], digest: str | None = None
+    ) -> str:
         artifact_id = self.ids.new_id("art")
-        raw = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        raw = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
         d = digest or self.blobs.put_bytes(raw)
         from hermes_bilevel.canonical import hash_canonical
 
@@ -223,7 +249,10 @@ class BilevelStore:
             ).fetchone()
         if not row:
             return None
-        return json.loads(row["body_json"])
+        res = json.loads(row["body_json"])
+        if isinstance(res, dict):
+            return res
+        return None
 
     def put_dataset_manifest(self, body: Mapping[str, Any]) -> None:
         with self._lock:
@@ -261,7 +290,9 @@ class BilevelStore:
                 ),
             )
 
-    def put_purity_registry(self, registry_hash: str, version: str, body: Mapping[str, Any]) -> None:
+    def put_purity_registry(
+        self, registry_hash: str, version: str, body: Mapping[str, Any]
+    ) -> None:
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO purity_registry_versions(registry_hash, created_at, version, body_json) VALUES (?,?,?,?)",

@@ -28,5 +28,7 @@ def test_approval_ok_and_self_approve_denied():
 def test_promote_blocked_by_default():
     res = promote_candidate({"candidate_hash": "sha256:x"}, None, promotion_enabled=False)
     assert res["ok"] is False
-    auto = promote_candidate({"candidate_hash": "sha256:x"}, {"decision": "approve"}, automatic=True)
+    auto = promote_candidate(
+        {"candidate_hash": "sha256:x"}, {"decision": "approve"}, automatic=True
+    )
     assert auto["status"] == "NOT_IMPLEMENTED_BY_DESIGN"

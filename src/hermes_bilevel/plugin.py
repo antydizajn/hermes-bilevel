@@ -11,6 +11,7 @@ Entry point:
 Safety: observe-only by default. Hooks never inject context, never block tools,
 never call models, never touch the network.
 """
+
 from __future__ import annotations
 
 import logging
@@ -32,7 +33,9 @@ def _safe_hook(fn):  # type: ignore[no-untyped-def]
         try:
             return fn(**kwargs)
         except Exception as exc:  # never break host agent
-            logger.debug("bilevel hook %s failed: %s", getattr(fn, "__name__", "?"), type(exc).__name__)
+            logger.debug(
+                "bilevel hook %s failed: %s", getattr(fn, "__name__", "?"), type(exc).__name__
+            )
             return None
 
     wrapper.__name__ = getattr(fn, "__name__", "bilevel_hook")
@@ -95,14 +98,16 @@ def register(ctx: Any) -> None:
         )
 
     if caps.get("register_command"):
+
         def _slash(raw_args: str) -> str:
             raw = (raw_args or "").strip()
             parts = raw.split()
             sub = parts[0] if parts else "status"
             if sub in {"status", "doctor", "latest"}:
-                from hermes_bilevel.cli import main
                 import io
                 from contextlib import redirect_stdout
+
+                from hermes_bilevel.cli import main
 
                 buf = io.StringIO()
                 argv = ["doctor", "--json"] if sub == "doctor" else ["status", "--json"]

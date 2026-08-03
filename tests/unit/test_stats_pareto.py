@@ -17,9 +17,33 @@ def test_bootstrap():
 
 def test_pareto():
     rows = [
-        {"candidate_hash": "a", "metrics": {"task_success_rate": 1.0, "estimated_cost_usd": 2.0, "latency_ms": 10, "tool_call_count": 5}},
-        {"candidate_hash": "b", "metrics": {"task_success_rate": 1.0, "estimated_cost_usd": 1.0, "latency_ms": 10, "tool_call_count": 5}},
-        {"candidate_hash": "c", "metrics": {"task_success_rate": 0.5, "estimated_cost_usd": 0.1, "latency_ms": 10, "tool_call_count": 5}},
+        {
+            "candidate_hash": "a",
+            "metrics": {
+                "task_success_rate": 1.0,
+                "estimated_cost_usd": 2.0,
+                "latency_ms": 10,
+                "tool_call_count": 5,
+            },
+        },
+        {
+            "candidate_hash": "b",
+            "metrics": {
+                "task_success_rate": 1.0,
+                "estimated_cost_usd": 1.0,
+                "latency_ms": 10,
+                "tool_call_count": 5,
+            },
+        },
+        {
+            "candidate_hash": "c",
+            "metrics": {
+                "task_success_rate": 0.5,
+                "estimated_cost_usd": 0.1,
+                "latency_ms": 10,
+                "tool_call_count": 5,
+            },
+        },
     ]
     front = nondominated_sort(rows)
     hashes = {r["candidate_hash"] for r in front}

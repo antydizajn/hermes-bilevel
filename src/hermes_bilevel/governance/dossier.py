@@ -1,7 +1,9 @@
 """Promotion dossier builder (reporting only in v0.1)."""
+
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from hermes_bilevel.canonical import hash_canonical
 from hermes_bilevel.ids import SortableIdGenerator, SystemClock
@@ -41,7 +43,9 @@ def build_promotion_dossier(
         "proposer_provider": candidate.get("proposer_provider"),
         "proposer_model": candidate.get("proposer_model"),
         "evaluation_results": list(evaluation_results),
-        "unresolved_risks": list(unresolved_risks or ["v0.1 promotion is dossier-only; no live activation"]),
+        "unresolved_risks": list(
+            unresolved_risks or ["v0.1 promotion is dossier-only; no live activation"]
+        ),
         "rollback_plan": candidate.get("rollback_plan"),
         "human_decision_field": None,
         "promotion_status": "dossier_only",

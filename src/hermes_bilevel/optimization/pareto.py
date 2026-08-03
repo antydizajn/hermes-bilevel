@@ -1,10 +1,14 @@
 """Simple Pareto nondominated sort without heavy deps."""
+
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 
-def dominates(a: Mapping[str, float], b: Mapping[str, float], maximize: Sequence[str], minimize: Sequence[str]) -> bool:
+def dominates(
+    a: Mapping[str, float], b: Mapping[str, float], maximize: Sequence[str], minimize: Sequence[str]
+) -> bool:
     """True if a dominates b."""
     better_or_eq = True
     strictly_better = False

@@ -1,4 +1,5 @@
 """hermes-bilevel: auditable bilevel optimization laboratory for Hermes Agent."""
+
 from __future__ import annotations
 
 from hermes_bilevel.version import PLUGIN_KEY, SCHEMA_VERSION, __version__

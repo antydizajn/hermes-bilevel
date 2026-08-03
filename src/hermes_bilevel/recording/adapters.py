@@ -1,9 +1,10 @@
 """Recorder adapters with explicit fidelity labels."""
+
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any, Iterable, Iterator
 
 from hermes_bilevel.protocols import (
     ProviderRecord,
@@ -49,6 +50,7 @@ class JsonlRecorderAdapter:
         path = Path(source.path)
         if not path.exists():
             return iter(())
+
         def _gen() -> Iterator[ProviderRecord]:
             with path.open("r", encoding="utf-8") as fh:
                 for i, line in enumerate(fh):
@@ -71,6 +73,7 @@ class JsonlRecorderAdapter:
                         is_fallback=bool(obj.get("is_fallback")),
                         is_stream=bool(obj.get("is_stream")),
                     )
+
         return _gen()
 
     def verify_record(self, record: ProviderRecord) -> VerificationResult:
@@ -96,9 +99,13 @@ class DirectoryRecorderAdapter:
         if not root.exists():
             return iter(())
         jsonl = JsonlRecorderAdapter()
+
         def _gen() -> Iterator[ProviderRecord]:
             for p in sorted(root.rglob("*.jsonl")):
-                yield from jsonl.iter_records(RecorderSource(source_id=source.source_id, kind="jsonl", path=str(p)))
+                yield from jsonl.iter_records(
+                    RecorderSource(source_id=source.source_id, kind="jsonl", path=str(p))
+                )
+
         return _gen()
 
     def verify_record(self, record: ProviderRecord) -> VerificationResult:

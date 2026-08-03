@@ -1,8 +1,8 @@
 """Hermes compatibility helpers — feature detection, no private internals."""
+
 from __future__ import annotations
 
 from typing import Any
-
 
 SUPPORTED_HOOKS = (
     "on_session_start",
