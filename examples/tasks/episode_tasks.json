@@ -1,0 +1,15 @@
+[
+  {
+    "task_id": "episode-1",
+    "schema_version": "1.0.0",
+    "title": "Episode: file observed",
+    "prompt": "Check that skills/demo/SKILL.md exists after the candidate patch is applied.",
+    "command_src": "import os\nprint('DEMO_OK' if os.path.exists('skills/demo/SKILL.md') else 'DEMO_MISSING')\n",
+    "validators": [
+      {"type": "contains", "key": "stdout", "value": "DEMO_OK"}
+    ],
+    "budgets": {
+      "max_turns": 1
+    }
+  }
+]

@@ -1,9 +1,9 @@
 {
   "target_type": "skill",
   "target_path": "skills/demo/SKILL.md",
-  "hypothesis": "Adding FIXME token satisfies deterministic offline validator",
+  "hypothesis": "Adding skills/demo/SKILL.md makes the episode command observe the file",
   "mechanism": "skill_text_augmentation",
-  "patch": "diff --git a/skills/demo/SKILL.md b/skills/demo/SKILL.md\nnew file mode 100644\n--- /dev/null\n+++ b/skills/demo/SKILL.md\n@@ -0,0 +1,1 @@\n+FIXME guidance line\n",
+  "patch": "diff --git a/skills/demo/SKILL.md b/skills/demo/SKILL.md\nnew file mode 100644\n--- /dev/null\n+++ b/skills/demo/SKILL.md\n@@ -0,0 +1,1 @@\n+Demo guidance\n",
   "rollback_plan": "restore previous SKILL.md",
   "proposer_backend": "manual",
   "safety_analysis": [

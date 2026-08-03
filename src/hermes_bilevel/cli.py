@@ -416,6 +416,14 @@ def dispatch(args: argparse.Namespace) -> int:
         if not cand:
             _print({"ok": False, "reason": "candidate not found"}, True)
             return 1
+        # Raw candidate files must pass validation so candidate_hash is populated
+        # (store inserts require it); invalid candidates fail cleanly here.
+        if not cand.get("candidate_hash"):
+            try:
+                cand = validate_candidate(cand, workspace_root=args.root or ".")
+            except CandidateValidationError as e:
+                _print({"ok": False, "reason": f"candidate invalid: {e.reason}"}, True)
+                return 2
         tasks = _load_json(args.tasks)
         if args.dry_run:
             _print({"ok": True, "dry_run": True, "tasks": len(tasks)}, as_json)
@@ -423,18 +431,26 @@ def dispatch(args: argparse.Namespace) -> int:
         purity = load_default_registry()
         if args.backend == "episode":
             from hermes_bilevel.episodes.runner import EpisodeError, EpisodeRunner
+            from hermes_bilevel.ids import SortableIdGenerator
 
+            _ep_ids = SortableIdGenerator()
             runner = EpisodeRunner(workspace_root=args.root or ".")
             results = []
             try:
                 for task in tasks:
-                    results.append(runner.run(cand, task))
+                    ep = runner.run(cand, task)
+                    ep["result_id"] = _ep_ids.new_id("res")
+                    ep["dataset_hash"] = None
+                    results.append(ep)
             except EpisodeError as e:
                 _print({"ok": False, "reason": f"episode backend failed: {e}"}, True)
                 return 2
             result = {"mode": "episode", "results": results}
-        else:
-            result = evaluate_candidate_synthetic_fixture(cand, tasks, purity=purity)
+            for ep in results:
+                get_runtime(cfg, args.root).store.put_evaluation_result(ep)
+            _print(result, as_json or True)
+            return 0
+        result = evaluate_candidate_synthetic_fixture(cand, tasks, purity=purity)
         get_runtime(cfg, args.root).store.put_evaluation_result(result)
         _print(result, as_json or True)
         return 0
