@@ -89,40 +89,81 @@ def parse_diff_paths(patch: str) -> list[str]:
 
 
 def check_patch_applicability(patch: str, workspace_root: Path | None = None) -> None:
-    """Run git apply --check in a temporary repository workspace."""
+    """Run git apply --check against real workspace content.
+
+    Prefers a disposable git worktree of the actual workspace repo (HEAD), so
+    applicability is judged against genuine file content -- never against
+    empty stubs. Falls back to a temp-repo simulation that copies only files
+    which really exist in the workspace.
+    """
+    root = Path(workspace_root or ".")
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
-        subprocess.run(["git", "init", "-q"], cwd=tmpdir, check=True)
-        subprocess.run(["git", "config", "user.name", "test"], cwd=tmpdir, check=True)
-        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmpdir, check=True)
+
+        # 1) Real workspace is a git repo -> disposable worktree of HEAD.
+        git_root_res = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True,
+        )
+        if git_root_res.returncode == 0:
+            git_root = git_root_res.stdout.strip()
+            worktree = tmp_path / "wt"
+            subprocess.run(
+                ["git", "-C", git_root, "worktree", "add", "--detach", str(worktree), "HEAD"],
+                check=True, capture_output=True,
+            )
+            try:
+                patch_file = worktree / "cand.patch"
+                patch_file.write_text(patch, encoding="utf-8")
+                # No --recount: stated hunk line numbers must be truthful.
+                apply_res = subprocess.run(
+                    ["git", "-C", str(worktree), "apply", "--check", "cand.patch"],
+                    capture_output=True, text=True,
+                )
+                if apply_res.returncode != 0:
+                    raise CandidateValidationError(
+                        f"patch is not applicable (git apply check failed): {apply_res.stderr.strip()}",
+                        "patch_applicability",
+                    )
+            finally:
+                subprocess.run(
+                    ["git", "-C", git_root, "worktree", "remove", "--force", str(worktree)],
+                    capture_output=True,
+                )
+            return
+
+        # 2) Fallback: workspace is not a git repo. Simulate a temp repo with
+        #    ONLY real existing files copied in (no empty stubs for missing
+        #    paths -- a patch that claims to modify a non-existent file must
+        #    fail the applicability check, not pass against a fake).
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "config", "user.name", "test"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
 
         paths = parse_diff_paths(patch)
         for p in paths:
-            # check if exists in real workspace
-            real_file = Path(workspace_root or ".") / p
+            real_file = root / p
             tmp_file = tmp_path / p
-            tmp_file.parent.mkdir(parents=True, exist_ok=True)
             if real_file.is_file():
+                tmp_file.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(real_file, tmp_file)
-            else:
-                tmp_file.touch()
-            subprocess.run(["git", "add", p], cwd=tmpdir, check=True)
+                subprocess.run(["git", "add", p], cwd=tmp_path, check=True)
 
-        # Stage and commit baseline if files exist
-        res = subprocess.run(["git", "status", "--porcelain"], cwd=tmpdir, capture_output=True, text=True)
+        res = subprocess.run(["git", "status", "--porcelain"], cwd=tmp_path, capture_output=True, text=True)
         if res.stdout.strip():
-            subprocess.run(["git", "commit", "-m", "baseline", "-q"], cwd=tmpdir, check=True)
+            subprocess.run(["git", "commit", "-m", "baseline", "-q"], cwd=tmp_path, check=True)
 
-        # Write patch file
         patch_file = tmp_path / "cand.patch"
         patch_file.write_text(patch, encoding="utf-8")
 
-        # Run git apply --check --recount
-        apply_res = subprocess.run(["git", "apply", "--check", "--recount", "cand.patch"], cwd=tmpdir, capture_output=True, text=True)
+        # No --recount: stated hunk line numbers must be truthful.
+        apply_res = subprocess.run(
+            ["git", "apply", "--check", "cand.patch"], cwd=tmp_path, capture_output=True, text=True
+        )
         if apply_res.returncode != 0:
             raise CandidateValidationError(
                 f"patch is not applicable (git apply check failed): {apply_res.stderr.strip()}",
-                "patch_applicability"
+                "patch_applicability",
             )
 
 

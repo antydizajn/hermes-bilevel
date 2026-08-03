@@ -124,7 +124,12 @@ def test_stats_and_eval_validators():
             "target_type": "skill",
             "target_path": "skills/x/SKILL.md",
             "hypothesis": "validator path works here",
-            "patch": "--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ -1,1 +1,2 @@\n+output=ok\n",
+            "patch": "diff --git a/skills/x/SKILL.md b/skills/x/SKILL.md\n"
+                     "new file mode 100644\n"
+                     "--- /dev/null\n"
+                     "+++ b/skills/x/SKILL.md\n"
+                     "@@ -0,0 +1,1 @@\n"
+                     "+output=ok\n",
         }
     )
     tasks = [

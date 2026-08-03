@@ -10,7 +10,12 @@ def test_det_eval_pass():
             "target_type": "skill",
             "target_path": "skills/x/SKILL.md",
             "hypothesis": "include TOKEN for success",
-            "patch": "--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ -1,1 +1,2 @@\n+TOKEN please\n",
+            "patch": "diff --git a/skills/x/SKILL.md b/skills/x/SKILL.md\n"
+                     "new file mode 100644\n"
+                     "--- /dev/null\n"
+                     "+++ b/skills/x/SKILL.md\n"
+                     "@@ -0,0 +1,1 @@\n"
+                     "+TOKEN please\n",
         }
     )
     tasks = [{"task_id": "t1", "expected_token": "TOKEN"}]
