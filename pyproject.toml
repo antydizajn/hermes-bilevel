@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-bilevel"
-version = "0.1.0"
+version = "0.1.3"
 description = "Auditable bilevel optimization laboratory for Hermes Agent"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -86,7 +86,7 @@ omit = ["*/migrations/*"]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 75
+fail_under = 85
 
 [tool.ruff]
 line-length = 100

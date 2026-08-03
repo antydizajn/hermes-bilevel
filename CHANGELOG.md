@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.3] - 2026-08-03
+
+### Added
+- `export`, `import`, and `gc` commands implemented in the CLI (`hermes-bilevel export/import/gc`).
+- `BilevelStore.dump_state()` for complete, portable table serialization.
+- `BilevelStore.restore_state()` for idempotent restore with dependency order resolution and schema validation.
+- `BilevelStore.gc()` for database vacuum and integrity check.
+- High-fidelity unit tests for CLI dispatch, registry validation, and edge/error paths in `tests/unit/test_cli.py`.
+- Comprehensive validation tests for `verify_approval` and `BoundedEventQueue` overflow/error policies.
+
+### Changed
+- Overall test coverage gate raised to 85% (measured at 88.8%).
+
 ## [0.1.2] - 2026-08-03
 
 ### Added
