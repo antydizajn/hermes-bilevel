@@ -24,7 +24,7 @@ class BoundedEventQueue:
     ) -> None:
         if maxsize < 1:
             raise ValueError("maxsize must be >= 1")
-        if overflow_policy not in {"drop_newest", "drop_oldest", "block"}:
+        if overflow_policy not in {"drop_newest", "drop_oldest", "block", "bounded_block"}:  # noqa: E501
             raise ValueError(f"invalid overflow_policy: {overflow_policy}")
         self.maxsize = maxsize
         self.overflow_policy = overflow_policy
@@ -59,7 +59,7 @@ class BoundedEventQueue:
             if self._closed:
                 return False
             try:
-                if self.overflow_policy == "block":
+                if self.overflow_policy == "bounded_block":
                     self._q.put(data, timeout=0.05)
                     return True
                 self._q.put_nowait(data)

@@ -45,7 +45,7 @@ def test_queue_close_concurrency_race():
     # Test thread-safe closure and sentinel race prevention.
     q = BoundedEventQueue(
         maxsize=10,
-        overflow_policy="block",
+        overflow_policy="bounded_block",
         writer=lambda e: time.sleep(0.001),
         start_worker=True,
     )

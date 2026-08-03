@@ -214,8 +214,11 @@ def validate_config(raw: Mapping[str, Any] | None) -> BilevelConfig:
         raise ConfigError("code_candidates cannot be enabled in observe mode")
 
     overflow = data.get("hooks", {}).get("overflow_policy", "drop_newest")
-    if overflow not in {"drop_newest", "drop_oldest", "block"}:
+    if overflow not in {"drop_newest", "drop_oldest", "block", "bounded_block"}:
         raise ConfigError(f"invalid hooks.overflow_policy: {overflow!r}")
+    # Canonicalize: "block" is a legacy alias for the honest bounded_block.
+    if overflow == "block":
+        data.setdefault("hooks", {})["overflow_policy"] = "bounded_block"
 
     cfg = BilevelConfig(data=data)
     return cfg
