@@ -167,7 +167,9 @@ def check_patch_applicability(patch: str, workspace_root: Path | None = None) ->
             )
 
 
-def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None) -> dict[str, Any]:
+def validate_candidate(
+    raw: Mapping[str, Any], *, parent_hash: str | None = None, workspace_root: str | Path | None = None
+) -> dict[str, Any]:
     if not isinstance(raw, Mapping):
         raise CandidateValidationError("candidate must be a mapping", "schema")
 
@@ -244,7 +246,7 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
                 )
 
     # Verify unified diff syntactic/git applicability
-    check_patch_applicability(patch)
+    check_patch_applicability(patch, workspace_root=Path(workspace_root) if workspace_root else None)
 
     # secret scan on patch
     rr = redact_text(patch)

@@ -133,6 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
     runp = esub.add_parser("run")
     runp.add_argument("--candidate", required=True)
     runp.add_argument("--tasks", required=True)
+    runp.add_argument("--backend", default="synthetic", choices=["synthetic", "episode"])
     runp.add_argument("--allow-model-call", action="store_true")
     runp.add_argument("--dry-run", action="store_true")
     _add_json(runp)
@@ -420,7 +421,20 @@ def dispatch(args: argparse.Namespace) -> int:
             _print({"ok": True, "dry_run": True, "tasks": len(tasks)}, as_json)
             return 0
         purity = load_default_registry()
-        result = evaluate_candidate_synthetic_fixture(cand, tasks, purity=purity)
+        if args.backend == "episode":
+            from hermes_bilevel.episodes.runner import EpisodeError, EpisodeRunner
+
+            runner = EpisodeRunner(workspace_root=args.root or ".")
+            results = []
+            try:
+                for task in tasks:
+                    results.append(runner.run(cand, task))
+            except EpisodeError as e:
+                _print({"ok": False, "reason": f"episode backend failed: {e}"}, True)
+                return 2
+            result = {"mode": "episode", "results": results}
+        else:
+            result = evaluate_candidate_synthetic_fixture(cand, tasks, purity=purity)
         get_runtime(cfg, args.root).store.put_evaluation_result(result)
         _print(result, as_json or True)
         return 0

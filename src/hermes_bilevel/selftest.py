@@ -167,6 +167,44 @@ def run_selftest() -> dict[str, Any]:
         store.put_candidate(valid)
         ok("import valid candidate", valid["candidate_hash"][:18])
 
+        # REAL inner-loop episode: apply patch in a disposable worktree of the
+        # actual repo and run a paired baseline-vs-candidate subprocess.
+        from hermes_bilevel.episodes.runner import EpisodeError, EpisodeRunner
+
+        repo_root = Path(__file__).resolve().parents[2]
+        try:
+            ep = EpisodeRunner(workspace_root=repo_root, timeout_seconds=30).run(
+                {
+                    "target_type": "skill",
+                    "target_path": "skills/episode_demo/SKILL.md",
+                    "hypothesis": "episode runner adds a file that a real subprocess can observe",
+                    "patch": (
+                        "diff --git a/skills/episode_demo/SKILL.md b/skills/episode_demo/SKILL.md\n"
+                        "new file mode 100644\n"
+                        "--- /dev/null\n"
+                        "+++ b/skills/episode_demo/SKILL.md\n"
+                        "@@ -0,0 +1,1 @@\n"
+                        "+episode marker\n"
+                    ),
+                },
+                {
+                    "task_id": "selftest-episode",
+                    "command_src": (
+                        "import os\n"
+                        "print('EPISODE_OK' if os.path.exists('skills/episode_demo/SKILL.md') else 'EPISODE_MISSING')\n"
+                    ),
+                    "validators": [{"type": "contains", "key": "stdout", "value": "EPISODE_OK"}],
+                },
+            )
+            if ep["label"] != "EPISODE_PASS":
+                fail("real episode runner", ep["label"])
+            ok(
+                "real episode runner (apply+run+validate)",
+                f"rc={ep['trajectory']['candidate']['returncode']}",
+            )
+        except EpisodeError as e:
+            fail("real episode runner", str(e))
+
         # forbidden path candidate
         try:
             validate_candidate(
