@@ -193,6 +193,15 @@ def _load_json(path: str) -> Any:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def _load_task_list(path: str) -> list[dict[str, Any]]:
+    """Load a task list from a JSON file, rejecting non-list shapes with a
+    clean error instead of a downstream ValueError."""
+    data = _load_json(path)
+    if not isinstance(data, list):
+        raise ValueError(f"task file must be a JSON list, got {type(data).__name__}")
+    return [t for t in data if isinstance(t, dict)]
+
+
 def dispatch(args: argparse.Namespace) -> int:
     as_json = bool(getattr(args, "json", False))
     try:
@@ -301,7 +310,11 @@ def dispatch(args: argparse.Namespace) -> int:
 
     if cmd == "dataset":
         if args.dataset_cmd == "build":
-            tasks = _load_json(args.tasks)
+            try:
+                tasks = _load_task_list(args.tasks)
+            except ValueError as e:
+                _print({"ok": False, "error": str(e)}, as_json)
+                return 2
             man = build_manifest(args.name, args.split, tasks)
             if args.lock:
                 man = lock_manifest(man)
@@ -424,7 +437,11 @@ def dispatch(args: argparse.Namespace) -> int:
             except CandidateValidationError as e:
                 _print({"ok": False, "reason": f"candidate invalid: {e.reason}"}, True)
                 return 2
-        tasks = _load_json(args.tasks)
+        try:
+            tasks = _load_task_list(args.tasks)
+        except ValueError as e:
+            _print({"ok": False, "error": str(e)}, as_json)
+            return 2
         if args.dry_run:
             _print({"ok": True, "dry_run": True, "tasks": len(tasks)}, as_json)
             return 0
@@ -434,7 +451,9 @@ def dispatch(args: argparse.Namespace) -> int:
             from hermes_bilevel.ids import SortableIdGenerator
 
             _ep_ids = SortableIdGenerator()
-            runner = EpisodeRunner(workspace_root=args.root or ".")
+            # Episode backend runs against the repo in the current working
+            # directory (the system being optimized), NOT the state root.
+            runner = EpisodeRunner(workspace_root=".")
             results = []
             try:
                 for task in tasks:
