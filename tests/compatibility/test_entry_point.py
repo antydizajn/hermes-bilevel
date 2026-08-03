@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from typing import Any
 
 from hermes_bilevel.plugin import register
 
@@ -12,6 +13,8 @@ class FakeCtx:
         self.commands = []
         self.skills = []
         self.profile_name = "default"
+        self.command_handlers = {}
+        self.should_fail_skill = False
 
     def register_hook(self, name, cb):
         self.hooks.append(name)
@@ -21,8 +24,11 @@ class FakeCtx:
 
     def register_command(self, **kwargs):
         self.commands.append(kwargs["name"])
+        self.command_handlers[kwargs["name"]] = kwargs["handler"]
 
     def register_skill(self, **kwargs):
+        if self.should_fail_skill:
+            raise RuntimeError("Fake skill registration failure")
         self.skills.append(kwargs["name"])
 
 
@@ -96,3 +102,43 @@ def test_entry_point_metadata():
     from hermes_bilevel import plugin as p
 
     assert callable(p.register)
+
+
+def test_plugin_slash_commands(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_BILEVEL_ROOT", str(tmp_path))
+    ctx = FakeCtx()
+    register(ctx)
+
+    # 1. Verify commands are registered
+    assert "bilevel" in ctx.commands
+    handler: Any = ctx.command_handlers["bilevel"]
+    assert callable(handler)
+
+    # 2. Run status handler (should succeed with JSON status)
+    out_status = str(handler("status"))
+    assert "mode" in out_status
+    assert "events" in out_status
+
+    # 3. Run doctor handler
+    out_doctor = str(handler("doctor"))
+    assert "overall" in out_doctor
+
+    # 4. Run latest handler (maps to status)
+    out_latest = str(handler("latest"))
+    assert "mode" in out_latest
+
+    # 5. Run explain handler
+    out_explain = str(handler("explain some_id"))
+    assert "Candidate explain is read-only" in out_explain
+
+    # 6. Run help/invalid command
+    out_invalid = str(handler("invalid_cmd"))
+    assert "bilevel slash" in out_invalid
+
+    # 7. Test exception swallowing during skill registration
+    ctx_err = FakeCtx()
+    ctx_err.should_fail_skill = True
+    register(ctx_err)
+    # The registration completes safely and doesn't propagate the error
+    assert "bilevel" in ctx_err.commands
+

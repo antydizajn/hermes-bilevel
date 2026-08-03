@@ -572,17 +572,52 @@ def dispatch(args: argparse.Namespace) -> int:
         _print({"ok": True, "audit_events": events}, as_json or True)
         return 0
 
-    if cmd in {"export", "import", "gc"}:
-        _print(
-            {
-                "ok": False,
-                "status": "NOT_IMPLEMENTED",
-                "command": cmd,
-                "reason": f"{cmd} command is planned; use SQLite backup/vacuum in v0.1",
-            },
-            True,
-        )
-        return 2
+    if cmd == "export":
+        rt = get_runtime(cfg, args.root)
+        try:
+            dump = rt.store.dump_state()
+            if args.path:
+                Path(args.path).write_text(
+                    json.dumps(dump, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+                _print(
+                    {
+                        "ok": True,
+                        "path": args.path,
+                        "rows": sum(len(v) for v in dump["tables"].values()),
+                    },
+                    as_json or True,
+                )
+            else:
+                print(json.dumps(dump, indent=2, ensure_ascii=False))
+            return 0
+        except Exception as e:
+            _print({"ok": False, "error": str(e)}, as_json or True)
+            return 1
+
+    if cmd == "import":
+        rt = get_runtime(cfg, args.root)
+        try:
+            if args.path:
+                dump = json.loads(Path(args.path).read_text(encoding="utf-8"))
+            else:
+                dump = json.loads(sys.stdin.read())
+            res = rt.store.restore_state(dump)
+            _print(res, as_json or True)
+            return 0 if res.get("ok") else 1
+        except Exception as e:
+            _print({"ok": False, "error": str(e)}, as_json or True)
+            return 1
+
+    if cmd == "gc":
+        rt = get_runtime(cfg, args.root)
+        try:
+            res = rt.store.gc(vacuum=True)
+            _print(res, as_json or True)
+            return 0 if res.get("integrity") == "ok" else 1
+        except Exception as e:
+            _print({"ok": False, "error": str(e)}, as_json or True)
+            return 1
 
     # experiment stubs
     if cmd == "experiment":

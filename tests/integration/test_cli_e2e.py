@@ -278,3 +278,60 @@ def test_doctor_reports_missing_state(cli_root: Path) -> None:
     flat = json.dumps(data)
     assert "model_calls" in flat or "wire" in flat
     assert data.get("overall") in {"PASS", "WARN", "FAIL"}
+
+
+def test_cli_export_import_gc(cli_root: Path) -> None:
+    # First init the state root
+    assert run_cli(cli_root, "init", "--json").returncode == 0
+
+    # Add a candidate so we have some data
+    cand = {
+        "target_type": "skill",
+        "target_path": "skills/demo/SKILL.md",
+        "hypothesis": "adding a skill file makes the episode command observe it",
+        "patch": (
+            "diff --git a/skills/demo/SKILL.md b/skills/demo/SKILL.md\n"
+            "new file mode 100644\n"
+            "--- /dev/null\n"
+            "+++ b/skills/demo/SKILL.md\n"
+            "@@ -0,0 +1,1 @@\n"
+            "+EP_OK guidance\n"
+        ),
+        "proposer_backend": "manual",
+    }
+    cand_file = cli_root.parent / "candidate.json"
+    cand_file.write_text(json.dumps(cand), encoding="utf-8")
+    assert run_cli(cli_root, "candidate", "import", str(cand_file), "--json").returncode == 0
+
+    # 1. Export without path (stdout)
+    r = run_cli(cli_root, "export", "--json")
+    assert r.returncode == 0, r.stderr
+    dump = json.loads(r.stdout)
+    assert dump["format"] == "hermes_bilevel_state"
+    assert len(dump["tables"]["candidates"]) == 1
+
+    # 2. Export with path
+    export_file = cli_root.parent / "export.json"
+    r = run_cli(cli_root, "export", str(export_file), "--json")
+    assert r.returncode == 0, r.stderr
+    res = json.loads(r.stdout)
+    assert res["ok"] is True
+    assert export_file.exists()
+
+    # 3. Import back to a fresh state root
+    fresh_root = cli_root.parent / "fresh_state"
+    fresh_root.mkdir()
+    assert run_cli(fresh_root, "init", "--json").returncode == 0
+    r = run_cli(fresh_root, "import", str(export_file), "--json")
+    assert r.returncode == 0, r.stderr
+    res = json.loads(r.stdout)
+    assert res["ok"] is True
+    assert res["rows"] > 0
+
+    # 4. GC
+    r = run_cli(cli_root, "gc", "--json")
+    assert r.returncode == 0, r.stderr
+    res = json.loads(r.stdout)
+    assert res["integrity"] == "ok"
+    assert res["vacuum"] is True
+

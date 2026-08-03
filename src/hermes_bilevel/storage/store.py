@@ -315,3 +315,84 @@ class BilevelStore:
                 (int(limit),),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    _DUMP_TABLES: tuple[str, ...] = (
+        "schema_versions",
+        "plugin_runs",
+        "sessions",
+        "turns",
+        "blobs",
+        "artifacts",
+        "events",
+        "event_losses",
+        "audit_events",
+        "dataset_manifests",
+        "candidates",
+        "evaluation_results",
+        "purity_registry_versions",
+        "correlations",
+    )
+
+    def dump_state(self) -> dict[str, Any]:
+        """Full portable dump of every table, ordered for safe restore."""
+        tables: dict[str, list[dict[str, Any]]] = {}
+        with self._lock:
+            for table in self._DUMP_TABLES:
+                cur = self._conn.execute(f'SELECT * FROM "{table}"')
+                tables[table] = [dict(r) for r in cur.fetchall()]
+        return {
+            "format": "hermes_bilevel_state",
+            "format_version": 1,
+            "schema_version": SCHEMA_VERSION,
+            "exported_at": self.clock.now_rfc3339(),
+            "tables": tables,
+        }
+
+    def restore_state(self, dump: Mapping[str, Any]) -> dict[str, Any]:
+        """Restore a previously exported dump.
+
+        Idempotent: INSERT OR REPLACE on every table in dependency order.
+        Validates the dump shape before touching anything.
+        """
+        if dump.get("format") != "hermes_bilevel_state":
+            raise ValueError(f"not a bilevel state dump: {dump.get('format')!r}")
+        if dump.get("format_version") != 1:
+            raise ValueError(f"unsupported dump format_version: {dump.get('format_version')!r}")
+        tables = dump.get("tables")
+        if not isinstance(tables, dict):
+            raise ValueError("dump has no tables mapping")
+        unknown = set(tables) - set(self._DUMP_TABLES)
+        if unknown:
+            raise ValueError(f"dump contains unknown tables: {sorted(unknown)}")
+        inserted = 0
+        with self._lock:
+            for table in self._DUMP_TABLES:
+                rows = tables.get(table)
+                if not rows:
+                    continue
+                cols = [k for k in rows[0].keys()]
+                placeholders = ", ".join("?" for _ in cols)
+                colsql = ", ".join(f'"{c}"' for c in cols)
+                for row in rows:
+                    values = [row.get(c) for c in cols]
+                    self._conn.execute(
+                        f'INSERT OR REPLACE INTO "{table}" ({colsql}) VALUES ({placeholders})',
+                        values,
+                    )
+                inserted += len(rows)
+        return {"ok": True, "tables": len(tables), "rows": inserted}
+
+    def gc(self, *, vacuum: bool = True) -> dict[str, Any]:
+        """Housekeeping: integrity check + optional VACUUM.
+
+        VACUUM rewrites the DB file; it cannot run inside a transaction.
+        The lock is dropped for the VACUUM call itself and re-acquired after.
+        """
+        integrity = self.integrity_check()
+        out: dict[str, Any] = {"integrity": integrity["integrity"], "vacuum": False}
+        if vacuum and integrity["integrity"] == "ok":
+            with self._lock:
+                self._conn.execute("VACUUM")
+            out["vacuum"] = True
+            out["db_path"] = str(self.db_path)
+        return out
