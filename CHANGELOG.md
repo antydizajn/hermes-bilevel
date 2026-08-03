@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.2] - 2026-08-03
+
+### Added
+- E2E integration tests for the whole CLI surface
+  (`tests/integration/test_cli_e2e.py`): real binary against an isolated
+  state root — version/init/status, doctor fail-closed defaults, dataset
+  build+inspect, candidate import+inspect, full synthetic pipeline
+  (dataset -> candidate -> experiment -> compare -> report -> dossier), and
+  the real episode backend (baseline MISSING vs candidate OK).
+- `_load_task_list` in the CLI: JSON task files must be lists; malformed
+  input returns a clean exit-2 error instead of a ValueError traceback.
+
+### Changed
+- Episode backend runs against the repo in the CWD (the system being
+  optimized); the state root is used for the store only.
+- Coverage gate raised from 71% to 75%.
+
 ## [0.1.1] - 2026-08-03
 
 ### Added
