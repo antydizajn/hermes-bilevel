@@ -10,7 +10,7 @@ def test_det_eval_pass():
             "target_type": "skill",
             "target_path": "skills/x/SKILL.md",
             "hypothesis": "include TOKEN for success",
-            "patch": "TOKEN please\n",
+            "patch": "--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ -1,1 +1,2 @@\n+TOKEN please\n",
         }
     )
     tasks = [{"task_id": "t1", "expected_token": "TOKEN"}]

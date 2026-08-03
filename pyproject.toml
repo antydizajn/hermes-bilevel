@@ -42,7 +42,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/antydizajn/hermes-bilevel"
-Documentation = "https://github.com/antydizajn/hermes-bilevel/tree/main/docs"
+Documentation = "https://github.com/antydizajn/hermes-bilevel/tree/master/docs"
 Issues = "https://github.com/antydizajn/hermes-bilevel/issues"
 Source = "https://github.com/antydizajn/hermes-bilevel"
 

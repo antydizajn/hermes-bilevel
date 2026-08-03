@@ -124,7 +124,7 @@ def test_stats_and_eval_validators():
             "target_type": "skill",
             "target_path": "skills/x/SKILL.md",
             "hypothesis": "validator path works here",
-            "patch": "output=ok\n",
+            "patch": "--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ -1,1 +1,2 @@\n+output=ok\n",
         }
     )
     tasks = [

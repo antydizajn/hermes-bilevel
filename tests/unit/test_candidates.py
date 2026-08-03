@@ -10,7 +10,7 @@ def _good(**kw):
         "target_type": "skill",
         "target_path": "skills/x/SKILL.md",
         "hypothesis": "this hypothesis is falsifiable enough",
-        "patch": "+hello\n",
+        "patch": "--- a/skills/x/SKILL.md\n+++ b/skills/x/SKILL.md\n@@ -1,1 +1,2 @@\n+hello\n",
     }
     base.update(kw)
     return base

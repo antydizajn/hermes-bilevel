@@ -51,39 +51,38 @@ class BoundedEventQueue:
         return self._q.qsize()
 
     def put(self, event: EventEnvelope | Mapping[str, Any]) -> bool:
+        data = event.to_dict() if isinstance(event, EventEnvelope) else dict(event)
         with self._lock:
             if self._closed:
                 return False
-        data = event.to_dict() if isinstance(event, EventEnvelope) else dict(event)
-        try:
-            if self.overflow_policy == "block":
-                self._q.put(data, timeout=0.05)
-                return True
-            self._q.put_nowait(data)
-            return True
-        except queue.Full:
-            if self.overflow_policy == "drop_newest":
-                self._mark_drop("drop_newest", data)
-                return False
-            if self.overflow_policy == "drop_oldest":
-                try:
-                    old = self._q.get_nowait()
-                    self._q.task_done()
-                    self._mark_drop("drop_oldest", old)
-                except queue.Empty:
-                    pass
-                try:
-                    self._q.put_nowait(data)
+            try:
+                if self.overflow_policy == "block":
+                    self._q.put(data, timeout=0.05)
                     return True
-                except queue.Full:
-                    self._mark_drop("drop_newest_after_oldest", data)
+                self._q.put_nowait(data)
+                return True
+            except queue.Full:
+                if self.overflow_policy == "drop_newest":
+                    self._mark_drop_under_lock("drop_newest", data)
                     return False
-            self._mark_drop("full", data)
-            return False
+                if self.overflow_policy == "drop_oldest":
+                    try:
+                        old = self._q.get_nowait()
+                        self._q.task_done()
+                        self._mark_drop_under_lock("drop_oldest", old)
+                    except queue.Empty:
+                        pass
+                    try:
+                        self._q.put_nowait(data)
+                        return True
+                    except queue.Full:
+                        self._mark_drop_under_lock("drop_newest_after_oldest", data)
+                        return False
+                self._mark_drop_under_lock("full", data)
+                return False
 
-    def _mark_drop(self, reason: str, data: Mapping[str, Any]) -> None:
-        with self._lock:
-            self._dropped += 1
+    def _mark_drop_under_lock(self, reason: str, data: Mapping[str, Any]) -> None:
+        self._dropped += 1
         if self.on_drop:
             try:
                 self.on_drop(reason, data)
@@ -107,7 +106,14 @@ class BoundedEventQueue:
                 try:
                     self.writer(item)
                 except Exception:
-                    self._mark_drop("writer_error", item)
+                    # Increment loss count
+                    with self._lock:
+                        self._dropped += 1
+                    if self.on_drop:
+                        try:
+                            self.on_drop("writer_error", item)
+                        except Exception:
+                            pass
             self._q.task_done()
 
     def flush(self, timeout: float = 2.0) -> None:
@@ -123,10 +129,10 @@ class BoundedEventQueue:
             if self._closed:
                 return
             self._closed = True
-        try:
-            self._q.put(_SENTINEL, timeout=0.5)
-        except queue.Full:
-            self._stop.set()
+            try:
+                self._q.put(_SENTINEL, timeout=0.5)
+            except queue.Full:
+                self._stop.set()
         self.flush()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)

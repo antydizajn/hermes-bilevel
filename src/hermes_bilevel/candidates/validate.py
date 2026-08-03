@@ -20,6 +20,18 @@ _clock = SystemClock()
 
 MAX_PATCH_BYTES = 200_000
 
+PATH_SCOPES = {
+    "skill": ("skills/",),
+    "executive_policy": ("policies/executive/",),
+    "workflow_policy": ("policies/workflow/",),
+    "retrieval_policy": ("policies/retrieval/",),
+    "memory_policy": ("policies/memory/",),
+    "tool_routing_policy": ("policies/tool_routing/",),
+    "budget_policy": ("policies/budget/",),
+    "reflection_policy": ("policies/reflection/",),
+    "stopping_policy": ("policies/stopping/",),
+}
+
 
 class CandidateValidationError(ValueError):
     def __init__(self, reason: str, code: str = "reject") -> None:
@@ -34,23 +46,38 @@ def _normalize_path(path: str) -> str:
 
 
 def parse_diff_paths(patch: str) -> list[str]:
-    """Parse all paths modified in the unified diff headers (--- a/... and +++ b/...)."""
-    paths = []
+    """Parse all paths modified in the unified diff headers."""
+    paths = set()
     for line in patch.splitlines():
         if line.startswith("--- ") or line.startswith("+++ "):
-            # strip header marker and metadata
             parts = line[4:].split()
             if not parts:
                 continue
             path = parts[0]
-            # Strip standard prefix patterns like a/ or b/
             for prefix in ("a/", "b/", "i/", "w/", "o/", "c/"):
                 if path.startswith(prefix):
                     path = path[len(prefix):]
                     break
             if path != "/dev/null":
-                paths.append(path)
-    return paths
+                paths.add(path)
+        elif line.startswith("diff --git "):
+            parts = line[11:].split()
+            if len(parts) >= 2:
+                p1, p2 = parts[0], parts[1]
+                for prefix in ("a/", "b/"):
+                    if p1.startswith(prefix): p1 = p1[len(prefix):]
+                    if p2.startswith(prefix): p2 = p2[len(prefix):]
+                if p1 != "/dev/null": paths.add(p1)
+                if p2 != "/dev/null": paths.add(p2)
+        elif line.startswith("rename from ") or line.startswith("copy from "):
+            parts = line.split(" ", 2)
+            if len(parts) > 2:
+                paths.add(parts[2].strip())
+        elif line.startswith("rename to ") or line.startswith("copy to "):
+            parts = line.split(" ", 2)
+            if len(parts) > 2:
+                paths.add(parts[2].strip())
+    return sorted(list(paths))
 
 
 def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None) -> dict[str, Any]:
@@ -86,8 +113,14 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
                 raise CandidateValidationError(f"forbidden path prefix: {pref}", "path")
         if path.endswith("approval.json") or "heldout" in path.lower():
             raise CandidateValidationError("candidate cannot touch approvals/heldout", "path")
-        if target == "skill" and not path.startswith("skills/"):
-            raise CandidateValidationError(f"target_type is skill but path is outside skills/: {path}", "path")
+        
+        allowed_prefixes = PATH_SCOPES.get(target)
+        if allowed_prefixes:
+            if not any(path.startswith(pref) for pref in allowed_prefixes):
+                raise CandidateValidationError(
+                    f"target_type is {target} but path is outside allowed scopes {allowed_prefixes}: {path}",
+                    "path"
+                )
 
     patch = str(raw.get("patch") or "")
     if len(patch.encode("utf-8")) > MAX_PATCH_BYTES:
@@ -97,6 +130,9 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
 
     # Parse and validate paths in diff headers
     diff_paths = parse_diff_paths(patch)
+    if not diff_paths:
+        raise CandidateValidationError("patch is not a valid unified diff (no modified files parsed)", "patch")
+
     for p in diff_paths:
         p_norm = _normalize_path(p)
         if p_norm.startswith(("/", "~")) or p_norm.startswith("../") or "/../" in p_norm or ".." in p_norm.split("/"):
@@ -106,16 +142,22 @@ def validate_candidate(raw: Mapping[str, Any], *, parent_hash: str | None = None
                 raise CandidateValidationError(f"forbidden path prefix in diff: {pref} in {p}", "path")
         if p_norm.endswith("approval.json") or "heldout" in p_norm.lower():
             raise CandidateValidationError("candidate diff cannot touch approvals/heldout", "path")
-        if target == "skill" and not p_norm.startswith("skills/"):
-            raise CandidateValidationError(f"target_type is skill but diff modifies file outside skills/: {p}", "path")
+        
+        allowed_prefixes = PATH_SCOPES.get(target)
+        if allowed_prefixes:
+            if not any(p_norm.startswith(pref) for pref in allowed_prefixes):
+                raise CandidateValidationError(
+                    f"target_type is {target} but diff modifies file outside allowed scopes {allowed_prefixes}: {p}",
+                    "path"
+                )
 
     # secret scan on patch
     rr = redact_text(patch)
     if rr.substitutions:
         raise CandidateValidationError("secrets detected in patch", "secret")
 
-    if parent_hash is not None and raw.get("parent_hash") not in {None, parent_hash}:
-        # if provided parent_hash expected, must match
+    # Strict parent_hash checking: if parent_hash is expected, it must match candidate parent_hash exactly
+    if parent_hash is not None:
         if raw.get("parent_hash") != parent_hash:
             raise CandidateValidationError("parent_hash mismatch", "parent")
 
