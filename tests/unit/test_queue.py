@@ -8,36 +8,33 @@ from hermes_bilevel.events.queue import BoundedEventQueue
 
 
 def test_queue_deadlock_prevention():
-    # Verify that calling on_drop doesn't deadlock when it queries queue properties that lock.
+    # Verify that calling on_drop doesn't deadlock when it queries queue
+    # properties that lock. Callback must fire outside the lock.
     dropped_count = 0
     q = None
 
     def on_drop(reason, data):
         nonlocal dropped_count
         dropped_count += 1
-        # Querying queue.dropped would deadlock if lock was held re-entrantly or not re-entrant
-        # in the same thread, but since we release the lock before firing the callback,
-        # it is completely safe!
+        # Querying queue.dropped would deadlock if the callback ran while the
+        # queue lock was held; the implementation releases the lock first.
         _ = q.dropped
 
+    # start_worker=False keeps the queue full deterministically (no drain
+    # race), so every overflow fires on_drop exactly once.
     q = BoundedEventQueue(
         maxsize=1,
         overflow_policy="drop_newest",
         on_drop=on_drop,
-        writer=lambda e: time.sleep(0.05),  # block writer to trigger drops
-        start_worker=True,
+        start_worker=False,
     )
 
-    # Put first item - taken by worker or queued
-    q.put(make_event("a", {"x": 1}))
-    # Put second item - fills the queue size of 1
-    q.put(make_event("b", {"x": 2}))
-    # Put third item - should overflow and drop newest
-    res = q.put(make_event("c", {"x": 3}))
+    assert q.put(make_event("a", {"x": 1})) is True  # fills the queue
+    assert q.put(make_event("b", {"x": 2})) is False  # overflow -> drop
+    assert q.put(make_event("c", {"x": 3})) is False  # overflow -> drop
 
-    assert res is False
     q.close()
-    assert dropped_count >= 1
+    assert dropped_count == 2
     assert q.dropped >= 1
 
 
